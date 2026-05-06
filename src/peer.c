@@ -873,6 +873,20 @@ int main(int argc, char *argv[]) {
 
     if (*tunnel == '\0') { LOG_ERROR("Config: interface is required"); exit(EXIT_FAILURE); }
     if (peer_config_count == 0) { LOG_ERROR("Config: at least one peer is required"); exit(EXIT_FAILURE); }
+    if (port <= 0 || port > 65535)           { LOG_ERROR("Config: port must be 1-65535 (got %d)", port); exit(EXIT_FAILURE); }
+    if (keepalive_interval <= 0)             { LOG_ERROR("Config: keepalive_interval must be > 0 (got %d)", keepalive_interval); exit(EXIT_FAILURE); }
+    if (cfg_rekey_after <= 0)                { LOG_ERROR("Config: rekey_after must be > 0 (got %d)", cfg_rekey_after); exit(EXIT_FAILURE); }
+    if (cfg_reconnect_interval <= 0)         { LOG_ERROR("Config: reconnect_interval must be > 0 (got %d)", cfg_reconnect_interval); exit(EXIT_FAILURE); }
+    if (cfg_session_expiry <= cfg_rekey_after) { LOG_ERROR("Config: session_expiry (%d) must be greater than rekey_after (%d)", cfg_session_expiry, cfg_rekey_after); exit(EXIT_FAILURE); }
+    if (cfg_prev_key_grace <= 0)             { LOG_ERROR("Config: prev_key_grace must be > 0 (got %d)", cfg_prev_key_grace); exit(EXIT_FAILURE); }
+    if (cfg_handshake_timeout <= 0)          { LOG_ERROR("Config: handshake_timeout must be > 0 (got %d)", cfg_handshake_timeout); exit(EXIT_FAILURE); }
+    if (cfg_handshake_cooldown <= 0)         { LOG_ERROR("Config: handshake_cooldown must be > 0 (got %d)", cfg_handshake_cooldown); exit(EXIT_FAILURE); }
+
+    LOG_INFO("Config: interface=%s port=%d%s%s", tunnel, port, *address ? " address=" : "", address);
+    LOG_INFO("Config: keepalive_interval=%ds rekey_after=%ds reconnect_interval=%ds",
+             keepalive_interval, cfg_rekey_after, cfg_reconnect_interval);
+    LOG_INFO("Config: session_expiry=%ds prev_key_grace=%ds handshake_timeout=%ds handshake_cooldown=%ds",
+             cfg_session_expiry, cfg_prev_key_grace, cfg_handshake_timeout, cfg_handshake_cooldown);
 
     EVP_PKEY *static_key = NULL;
     unsigned char static_pub[DH_PUBKEY_LEN];

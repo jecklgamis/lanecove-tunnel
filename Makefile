@@ -1,4 +1,5 @@
 DOCKER_IMAGE:=lanecove-tunnel-peer:latest
+TEST_IMAGE:=lanecove-tunnel-test:latest
 DEB_VERSION?=1.0.0
 DEB_ARCH?=amd64
 DEB_PKG:=lanecove-tunnel_$(DEB_VERSION)_$(DEB_ARCH)
@@ -69,11 +70,12 @@ test:
 	gcc $(CFLAGS) -o build/run_tests tests/test_common.c src/common.c build/rcunit/*.o \
 		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm
 	./build/run_tests
-test-using-docker:
+test-image:
+	docker build -t $(TEST_IMAGE) -f Dockerfile.test .
+test-using-docker: test-image
 	mkdir -p build
-	docker run --rm -v $(CURDIR):/lanecove -w /lanecove debian:bookworm-slim bash -c \
-		"apt-get update -q && apt-get install -y -q gcc make libssl-dev libyaml-dev && \
-		mkdir -p build/rcunit && \
+	docker run --rm -v $(CURDIR):/lanecove -w /lanecove $(TEST_IMAGE) bash -c \
+		"mkdir -p build/rcunit && \
 		for f in $(RCUNIT_SRC); do gcc -O2 -w -c \$$f -o build/rcunit/\$$(basename \$$f .c).o -I rcunit/src; done && \
 		gcc $(CFLAGS) -o build/run_tests tests/test_common.c src/common.c build/rcunit/*.o \
 		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm && \
