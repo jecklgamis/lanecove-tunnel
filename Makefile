@@ -66,7 +66,7 @@ deb: all
 	@echo "Package built: build/$(DEB_PKG).deb"
 test:
 	mkdir -p build/rcunit
-	for f in $(RCUNIT_SRC); do gcc -O2 -w -c $$f -o build/rcunit/$$(basename $$f .c).o -I rcunit/src; done
+	for f in $(RCUNIT_SRC); do gcc -O2 -w -include tests/rcunit_no_debug.h -c $$f -o build/rcunit/$$(basename $$f .c).o -I rcunit/src; done
 	gcc $(CFLAGS) -o build/run_tests tests/test_common.c src/common.c build/rcunit/*.o \
 		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm
 	./build/run_tests
@@ -76,7 +76,7 @@ test-using-docker: test-image
 	mkdir -p build
 	docker run --rm -v $(CURDIR):/lanecove -w /lanecove $(TEST_IMAGE) bash -c \
 		"mkdir -p build/rcunit && \
-		for f in $(RCUNIT_SRC); do gcc -O2 -w -c \$$f -o build/rcunit/\$$(basename \$$f .c).o -I rcunit/src; done && \
+		for f in $(RCUNIT_SRC); do gcc -O2 -w -include tests/rcunit_no_debug.h -c \$$f -o build/rcunit/\$$(basename \$$f .c).o -I rcunit/src; done && \
 		gcc $(CFLAGS) -o build/run_tests tests/test_common.c src/common.c build/rcunit/*.o \
 		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm && \
 		./build/run_tests"

@@ -70,7 +70,9 @@
     extern void out_impl(void *param);
 
 #define RCU_LOG_TRACE(fmt, ...) fprintf(stdout, "[TRACE] " fmt "\n", ##__VA_ARGS__)
+#ifndef RCU_LOG_DEBUG
 #define RCU_LOG_DEBUG(fmt, ...) fprintf(stdout, "[DEBUG] " fmt "\n", ##__VA_ARGS__)
+#endif
 #define RCU_LOG_INFO(fmt, ...)  fprintf(stdout, "[INFO]  " fmt "\n", ##__VA_ARGS__)
 #define RCU_LOG_WARN(fmt, ...)  fprintf(stdout, "[WARN]  " fmt "\n", ##__VA_ARGS__)
 #define RCU_LOG_ERROR(fmt, ...) fprintf(stderr, "[ERROR] " fmt "\n", ##__VA_ARGS__)
