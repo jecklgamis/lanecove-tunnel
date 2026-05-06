@@ -322,6 +322,7 @@ int handshake_client_send(int sock_fd, struct sockaddr_in *server_addr,
                           EVP_PKEY *static_key, const unsigned char *static_pub,
                           const unsigned char *server_static_pub,
                           hs_client_state_t *state_out) {
+    (void)static_key;
     if (!server_static_pub) {
         LOG_ERROR("Server static public key required for identity hiding");
         return -1;

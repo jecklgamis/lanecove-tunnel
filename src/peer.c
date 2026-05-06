@@ -269,7 +269,8 @@ static int load_config(const char *path,
                         LOG_ERROR("Config: invalid port in endpoint: %s", v);
                         ok = 0; break;
                     }
-                    strncpy(pc->endpoint_host, buf, sizeof(pc->endpoint_host) - 1);
+                    strncpy(pc->endpoint_host, buf, sizeof(pc->endpoint_host));
+                    pc->endpoint_host[sizeof(pc->endpoint_host) - 1] = '\0';
                     pc->endpoint_port       = eport;
                     pc->endpoint.sin_family = AF_INET;
                     pc->endpoint.sin_port   = htons(eport);

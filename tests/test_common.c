@@ -284,7 +284,7 @@ RCU_TEST(test_encrypt_produces_different_ciphertext_each_time) {
 
 /* --- main ---------------------------------------------------------------- */
 
-int main(int argc, char *argv[]) {
+int main(void) {
     /* bytes_to_hex */
     rcu_add_test(test_bytes_to_hex_zeros);
     rcu_add_test(test_bytes_to_hex_all_ff);
