@@ -11,7 +11,7 @@
 #define HANDSHAKE_TIMEOUT_SECS      5
 #define RECONNECT_INTERVAL_SECS    30
 #define SESSION_EXPIRY_SECS       (3 * REKEY_AFTER_SECS)  /* 540s — evict silent inbound peers */
-#define KEEPALIVE_INTERVAL_SECS    25  /* send empty packet if idle; keeps NAT mappings alive */
+#define KEEPALIVE_INTERVAL_SECS    25
 #define MAX_PEERS                  64
 #define MAX_ROUTES_PER_PEER        16
 
@@ -150,7 +150,8 @@ static int parse_cidr(const char *cidr, ip_prefix_t *out) {
 }
 
 static int load_config(const char *path,
-                       char *tunnel, char *address, int *port, char *keyfile,
+                       char *tunnel, char *address, int *port,
+                       int *keepalive_interval, char *keyfile,
                        char *psk, int *has_psk) {
     FILE *f = fopen(path, "r");
     if (!f) {
@@ -193,9 +194,10 @@ static int load_config(const char *path,
         case S_ROOT_VAL:
             if (ev.type == YAML_SCALAR_EVENT) {
                 const char *v = (char *)ev.data.scalar.value;
-                if      (strcmp(key, "interface")      == 0) strncpy(tunnel,  v, IF_NAMESIZE - 1);
-                else if (strcmp(key, "address")        == 0) strncpy(address, v, 63);
-                else if (strcmp(key, "port")           == 0) *port = atoi(v);
+                if      (strcmp(key, "interface")        == 0) strncpy(tunnel,  v, IF_NAMESIZE - 1);
+                else if (strcmp(key, "address")          == 0) strncpy(address, v, 63);
+                else if (strcmp(key, "port")             == 0) *port = atoi(v);
+                else if (strcmp(key, "keepalive_interval") == 0) *keepalive_interval = atoi(v);
                 else if (strcmp(key, "private_key_file") == 0) strncpy(keyfile, v, 255);
                 else if (strcmp(key, "verbose")        == 0 && strcmp(v, "true") == 0) log_level = 1;
                 else if (strcmp(key, "pre_shared_key") == 0) {
@@ -480,7 +482,8 @@ static int initiate_outbound_handshake(int sock_fd, int cfg_idx,
 }
 
 static void event_loop(int tun_fd, int sock_fd, EVP_PKEY *static_key,
-                       const unsigned char *static_pub, const unsigned char *psk_key) {
+                       const unsigned char *static_pub, const unsigned char *psk_key,
+                       int keepalive_interval) {
     unsigned char buffer[BUFFER_SIZE];
     unsigned char plain_buf[HEADER_SIZE + SEQ_SIZE + BUFFER_SIZE];
     unsigned char wire_buf[BUFFER_SIZE + WIRE_OVERHEAD];
@@ -558,7 +561,7 @@ static void event_loop(int tun_fd, int sock_fd, EVP_PKEY *static_key,
             /* Send keepalive to sessions that have had no outbound traffic recently */
             for (int j = 0; j < session_slots; j++) {
                 peer_session_t *s = &sessions[j];
-                if (!s->active || now - s->last_sent < KEEPALIVE_INTERVAL_SECS) continue;
+                if (!s->active || now - s->last_sent < keepalive_interval) continue;
                 LOG_DEBUG("Keepalive -> %s:%d",
                           inet_ntoa(s->addr.sin_addr), ntohs(s->addr.sin_port));
                 forward_to_peer(sock_fd, s, enc_ctx, plain_buf, NULL, 0, wire_buf);
@@ -790,7 +793,7 @@ done:
 }
 
 static void start_peer(char *tunnel, const char *address, int port,
-                       const unsigned char *psk_key,
+                       int keepalive_interval, const unsigned char *psk_key,
                        EVP_PKEY *static_key, const unsigned char *static_pub) {
     int sock_fd, tun_fd;
 
@@ -829,7 +832,7 @@ static void start_peer(char *tunnel, const char *address, int port,
     signal(SIGUSR1, handle_signal);
 
     refresh_precomp_eph();
-    event_loop(tun_fd, sock_fd, static_key, static_pub, psk_key);
+    event_loop(tun_fd, sock_fd, static_key, static_pub, psk_key, keepalive_interval);
 
     close(sock_fd);
     close(tun_fd);
@@ -843,6 +846,7 @@ int main(int argc, char *argv[]) {
         else { fprintf(stderr, "Usage: %s [-c <config.yaml>]\n", argv[0]); exit(1); }
     }
     int port = 5040;
+    int keepalive_interval = KEEPALIVE_INTERVAL_SECS;
     char tunnel[IF_NAMESIZE] = {0};
     char address[64] = {0};
     char keyfile[256] = "peer.key";
@@ -850,7 +854,7 @@ int main(int argc, char *argv[]) {
     int has_psk = 0;
 
     LOG_INFO("Loading config: %s", config_path);
-    if (load_config(config_path, tunnel, address, &port, keyfile, psk, &has_psk) < 0)
+    if (load_config(config_path, tunnel, address, &port, &keepalive_interval, keyfile, psk, &has_psk) < 0)
         exit(EXIT_FAILURE);
 
     if (*tunnel == '\0') { LOG_ERROR("Config: interface is required"); exit(EXIT_FAILURE); }
@@ -880,7 +884,7 @@ int main(int argc, char *argv[]) {
         LOG_WARN("No PSK — handshake unauthenticated (MITM-vulnerable)");
     }
 
-    start_peer(tunnel, address, port, has_psk ? psk_key : NULL, static_key, static_pub);
+    start_peer(tunnel, address, port, keepalive_interval, has_psk ? psk_key : NULL, static_key, static_pub);
     EVP_PKEY_free(static_key);
     return 0;
 }
