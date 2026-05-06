@@ -5,12 +5,11 @@
 #include "common.h"
 
 #define REKEY_AFTER_SECS          180
-#define REKEY_INITIATE_SECS       144   /* start rekeying at 80% of interval */
 #define PREV_KEY_GRACE_SECS        90
 #define HANDSHAKE_COOLDOWN_SECS     5
 #define HANDSHAKE_TIMEOUT_SECS      5
 #define RECONNECT_INTERVAL_SECS    30
-#define SESSION_EXPIRY_SECS       (3 * REKEY_AFTER_SECS)  /* 540s — evict silent inbound peers */
+#define SESSION_EXPIRY_SECS       (3 * REKEY_AFTER_SECS)
 #define KEEPALIVE_INTERVAL_SECS    25
 #define MAX_PEERS                  64
 #define MAX_ROUTES_PER_PEER        16
@@ -63,6 +62,10 @@ typedef struct {
     hs_client_state_t  hs_state;
     struct sockaddr_in server_addr;
 } pending_hs_t;
+
+static int cfg_rekey_after        = REKEY_AFTER_SECS;
+static int cfg_reconnect_interval = RECONNECT_INTERVAL_SECS;
+static int cfg_session_expiry     = SESSION_EXPIRY_SECS;
 
 static peer_config_t  peer_configs[MAX_PEERS];
 static int            peer_config_count = 0;
@@ -197,7 +200,10 @@ static int load_config(const char *path,
                 if      (strcmp(key, "interface")        == 0) strncpy(tunnel,  v, IF_NAMESIZE - 1);
                 else if (strcmp(key, "address")          == 0) strncpy(address, v, 63);
                 else if (strcmp(key, "port")             == 0) *port = atoi(v);
-                else if (strcmp(key, "keepalive_interval") == 0) *keepalive_interval = atoi(v);
+                else if (strcmp(key, "keepalive_interval")  == 0) *keepalive_interval      = atoi(v);
+                else if (strcmp(key, "rekey_after")         == 0) cfg_rekey_after            = atoi(v);
+                else if (strcmp(key, "reconnect_interval")  == 0) cfg_reconnect_interval     = atoi(v);
+                else if (strcmp(key, "session_expiry")      == 0) cfg_session_expiry         = atoi(v);
                 else if (strcmp(key, "private_key_file") == 0) strncpy(keyfile, v, 255);
                 else if (strcmp(key, "verbose")        == 0 && strcmp(v, "true") == 0) log_level = 1;
                 else if (strcmp(key, "pre_shared_key") == 0) {
@@ -380,7 +386,7 @@ static void session_init(peer_session_t *s, struct sockaddr_in *addr,
     s->last_seen = 0;
     s->last_sent = time(NULL); /* suppress immediate keepalive after handshake */
     s->last_handshake = time(NULL);
-    s->rekey_deadline = time(NULL) + REKEY_AFTER_SECS;
+    s->rekey_deadline = time(NULL) + cfg_rekey_after;
     s->rekeying = 0;
     s->send_seq = 0;
     s->recv_seq_highest = 0;
@@ -521,10 +527,10 @@ static void event_loop(int tun_fd, int sock_fd, EVP_PKEY *static_key,
                 peer_config_t *cfg = &peer_configs[i];
                 if (!cfg->has_endpoint) continue;
                 peer_session_t *s = find_session_by_pub(cfg->pub);
-                int needs = !s || (now >= s->last_handshake + REKEY_INITIATE_SECS && !s->rekeying);
-                int ready  = now - cfg->last_attempt >= RECONNECT_INTERVAL_SECS;
+                int needs = !s || (now >= s->last_handshake + cfg_rekey_after * 4 / 5 && !s->rekeying);
+                int ready  = now - cfg->last_attempt >= cfg_reconnect_interval;
                 if (needs && ready) {
-                    resolve_endpoint(cfg); /* refresh DNS; blocking but rate-limited to RECONNECT_INTERVAL_SECS */
+                    resolve_endpoint(cfg); /* refresh DNS; blocking but rate-limited to cfg_reconnect_interval */
                     if (s) s->rekeying = 1;
                     if (initiate_outbound_handshake(sock_fd, i, static_key, static_pub, psk_key) < 0)
                         if (s) s->rekeying = 0;
@@ -538,7 +544,7 @@ static void event_loop(int tun_fd, int sock_fd, EVP_PKEY *static_key,
                 inet_ntop(AF_INET, &peer_configs[p->cfg_idx].endpoint.sin_addr, ip_str, sizeof(ip_str));
                 LOG_WARN("Handshake to %s:%d timed out — will retry in %ds",
                          ip_str, ntohs(peer_configs[p->cfg_idx].endpoint.sin_port),
-                         RECONNECT_INTERVAL_SECS);
+                         cfg_reconnect_interval);
                 EVP_PKEY_free(p->hs_state.eph_key);
                 p->hs_state.eph_key = NULL;
                 p->active = 0;
@@ -550,7 +556,7 @@ static void event_loop(int tun_fd, int sock_fd, EVP_PKEY *static_key,
                 peer_session_t *s = &sessions[j];
                 if (!s->active) continue;
                 time_t ref = s->last_seen > 0 ? s->last_seen : s->last_handshake;
-                if (now - ref <= SESSION_EXPIRY_SECS) continue;
+                if (now - ref <= cfg_session_expiry) continue;
                 char key_hex[17];
                 bytes_to_hex(s->static_pub, 8, key_hex);
                 LOG_INFO("Session expired (no traffic for %ds): %s:%d key=%s...",
