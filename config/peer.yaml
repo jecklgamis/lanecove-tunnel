@@ -3,6 +3,10 @@ port: 5040
 private_key_file: /etc/lanecove/peer.key
 pre_shared_key: some-psk
 verbose: false
+keepalive_interval: 25
+rekey_after: 180
+reconnect_interval: 30
+session_expiry: 540
 
 peers:
   - public_key: <relay-public-key-hex>
