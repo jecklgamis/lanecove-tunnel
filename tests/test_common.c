@@ -5,6 +5,8 @@
 
 #include "../src/common.h"
 
+#define add_test(fn) rcu_add_test_func(NULL, fn, NULL, NULL, #fn)
+
 /* --- bytes_to_hex -------------------------------------------------------- */
 
 RCU_TEST(test_bytes_to_hex_zeros) {
@@ -286,37 +288,37 @@ RCU_TEST(test_encrypt_produces_different_ciphertext_each_time) {
 
 int main(void) {
     /* bytes_to_hex */
-    rcu_add_test(test_bytes_to_hex_zeros);
-    rcu_add_test(test_bytes_to_hex_all_ff);
-    rcu_add_test(test_bytes_to_hex_known_value);
-    rcu_add_test(test_bytes_to_hex_single_byte);
+    add_test(test_bytes_to_hex_zeros);
+    add_test(test_bytes_to_hex_all_ff);
+    add_test(test_bytes_to_hex_known_value);
+    add_test(test_bytes_to_hex_single_byte);
 
     /* hex_to_bytes */
-    rcu_add_test(test_hex_to_bytes_known_value);
-    rcu_add_test(test_hex_to_bytes_wrong_length);
-    rcu_add_test(test_hex_to_bytes_uppercase);
-    rcu_add_test(test_hex_to_bytes_roundtrip);
+    add_test(test_hex_to_bytes_known_value);
+    add_test(test_hex_to_bytes_wrong_length);
+    add_test(test_hex_to_bytes_uppercase);
+    add_test(test_hex_to_bytes_roundtrip);
 
     /* derive_key */
-    rcu_add_test(test_derive_key_is_deterministic);
-    rcu_add_test(test_derive_key_different_psks_produce_different_keys);
-    rcu_add_test(test_derive_key_output_is_not_zero);
+    add_test(test_derive_key_is_deterministic);
+    add_test(test_derive_key_different_psks_produce_different_keys);
+    add_test(test_derive_key_output_is_not_zero);
 
     /* check_replay */
-    rcu_add_test(test_replay_sequential_packets_accepted);
-    rcu_add_test(test_replay_duplicate_rejected);
-    rcu_add_test(test_replay_out_of_order_within_window_accepted);
-    rcu_add_test(test_replay_too_old_rejected);
-    rcu_add_test(test_replay_boundary_just_inside_window);
-    rcu_add_test(test_replay_boundary_just_outside_window);
-    rcu_add_test(test_replay_large_gap_resets_window);
+    add_test(test_replay_sequential_packets_accepted);
+    add_test(test_replay_duplicate_rejected);
+    add_test(test_replay_out_of_order_within_window_accepted);
+    add_test(test_replay_too_old_rejected);
+    add_test(test_replay_boundary_just_inside_window);
+    add_test(test_replay_boundary_just_outside_window);
+    add_test(test_replay_large_gap_resets_window);
 
     /* encrypt_packet / decrypt_packet */
-    rcu_add_test(test_encrypt_decrypt_roundtrip);
-    rcu_add_test(test_encrypt_wrong_key_fails_decrypt);
-    rcu_add_test(test_decrypt_tampered_ciphertext_fails);
-    rcu_add_test(test_decrypt_truncated_input_fails);
-    rcu_add_test(test_encrypt_produces_different_ciphertext_each_time);
+    add_test(test_encrypt_decrypt_roundtrip);
+    add_test(test_encrypt_wrong_key_fails_decrypt);
+    add_test(test_decrypt_tampered_ciphertext_fails);
+    add_test(test_decrypt_truncated_input_fails);
+    add_test(test_encrypt_produces_different_ciphertext_each_time);
 
     return rcu_run_tests();
 }
