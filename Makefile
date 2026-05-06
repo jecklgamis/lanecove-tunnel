@@ -6,6 +6,17 @@ DEB_ROOT:=build/$(DEB_PKG)
 RPM_VERSION?=1.0.0
 RPM_RELEASE?=1
 
+RCUNIT_SRC := rcunit/src/rcunit.c rcunit/src/rcunit_assert.c rcunit/src/rcunit_error.c \
+              rcunit/src/rcunit_exception.c rcunit/src/rcunit_function.c \
+              rcunit/src/rcunit_hashtable.c rcunit/src/rcunit_list.c \
+              rcunit/src/rcunit_machine.c rcunit/src/rcunit_mem.c \
+              rcunit/src/rcunit_module.c rcunit/src/rcunit_mtrace.c \
+              rcunit/src/rcunit_queue.c rcunit/src/rcunit_random.c \
+              rcunit/src/rcunit_registry.c rcunit/src/rcunit_report.c \
+              rcunit/src/rcunit_report_html.c rcunit/src/rcunit_report_json.c \
+              rcunit/src/rcunit_report_plaintext.c rcunit/src/rcunit_report_xml.c \
+              rcunit/src/rcunit_thread.c rcunit/src/rcunit_util.c
+
 all:
 	gcc -o lanecove src/peer.c src/common.c -lssl -lcrypto -lyaml
 	chmod +x lanecove
@@ -50,6 +61,18 @@ deb: all
 	install -m 755 debian/prerm $(DEB_ROOT)/DEBIAN/prerm
 	dpkg-deb --build $(DEB_ROOT) build/$(DEB_PKG).deb
 	@echo "Package built: build/$(DEB_PKG).deb"
+test:
+	mkdir -p build
+	gcc -o build/run_tests tests/test_common.c src/common.c $(RCUNIT_SRC) \
+		-I rcunit/src -lssl -lcrypto -lyaml -lpthread -lm
+	./build/run_tests
+test-using-docker:
+	mkdir -p build
+	docker run --rm -v $(CURDIR):/lanecove -w /lanecove debian:bookworm-slim bash -c \
+		"apt-get update -q && apt-get install -y -q gcc make libssl-dev libyaml-dev && \
+		gcc -o build/run_tests tests/test_common.c src/common.c $(RCUNIT_SRC) \
+		-I rcunit/src -lssl -lcrypto -lyaml -lpthread -lm && \
+		./build/run_tests"
 clean:
 	rm -f ./lanecove
 	rm -rf build/

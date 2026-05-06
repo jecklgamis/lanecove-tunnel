@@ -1,0 +1,132 @@
+/*
+ * Copyright 2013 Jerrico Gamis <jecklgamis@gmail.com>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "rcunit.h"
+
+/* The test machine */
+rcu_test_machine the_test_machine;
+
+
+extern rcu_test *rcu_srch_test_func_by_name(rcu_module *mod, const char *name);
+
+extern rcu_test *rcu_srch_test_func_entry(rcu_module *mod, rcu_generic_function entry);
+
+extern int rcu_init_test_mach(rcu_test_machine *machine);
+
+int rcu_init_log();
+
+int rcu_destroy_log();
+
+RCU_API int rcu_run_test_mach() {
+    rcu_test_machine *machine = &the_test_machine;
+    char ts_buff[RCU_TSTAMP_BUFF_SIZE];
+    rcu_init();
+    rcu_get_timestamp(ts_buff, RCU_TSTAMP_BUFF_SIZE);
+    RCU_LOG_INFO("Test run started %s", ts_buff);
+    RCU_SET_RUN_LEVEL(machine, RCU_RUN_LEVEL_MACH);
+    rcu_run_tests_impl(machine);
+    rcu_get_timestamp(ts_buff, RCU_TSTAMP_BUFF_SIZE);
+    rcu_stop_mach(machine);
+    rcu_gen_test_run_report(machine);
+    RCU_LOG_INFO("Test run finished %s", ts_buff);
+    RCU_LOG_INFO("Test Run Results: Passed : %d  Failed : %d", machine->nr_succ_test, machine->nr_failed_test);
+    if (machine->nr_failed_reg == 0 && rcu_get_nr_tests() > 0) {
+        RCU_LOG_INFO("Test successful!");
+    } else {
+        RCU_LOG_INFO("Test failed!");
+    }
+    rcu_destroy();
+    return machine->nr_failed_reg > 0 ? RCU_E_NG : RCU_E_OK;
+}
+
+RCU_API int rcu_run_tests() {
+    return rcu_run_test_mach();
+}
+
+void rcu_print_rcunit_info() {
+    RCU_LOG_DEBUG("[ RCUNIT INFORMATION ]");
+    RCU_LOG_DEBUG("RCUNIT version is %s (Built last %s %s)", RCU_VERSION_STRING, __DATE__, __TIME__);
+#ifdef RCU_DEBUG
+    RCU_LOG_DEBUG("RCUNIT is running in debug mode");
+#else
+    RCU_LOG_DEBUG("RCUNIT is not running in debug mode");
+#endif
+
+#if RCU_ENABLE_MTRACE
+    RCU_LOG_DEBUG("Memory leak checking is enabled");
+#else
+    RCU_LOG_DEBUG("Memory leak checking  is disabled");
+#endif
+
+#if RCU_ENABLE_MALLOC_ALIGNMENT
+    RCU_LOG_DEBUG("Memory allocation aligned to %zu bytes", RCU_DEFAULT_MALLOC_ALIGNMENT);
+#endif
+    RCU_LOG_DEBUG("sizeof(char) is %zu bytes", sizeof(char));
+    RCU_LOG_DEBUG("sizeof(rcu_short) is %zu bytes", sizeof(rcu_short));
+    RCU_LOG_DEBUG("sizeof(int) is %zu bytes", sizeof(int));
+    RCU_LOG_DEBUG("sizeof(rcu_long) is %zu bytes", sizeof(rcu_long));
+    RCU_LOG_DEBUG("sizeof(rcu_float) is %zu bytes", sizeof(rcu_float));
+    RCU_LOG_DEBUG("sizeof(rcu_double) is %zu bytes", sizeof(rcu_double));
+    RCU_LOG_DEBUG("sizeof(rcu_long_long) is %zu bytes", sizeof(rcu_long_long));
+    RCU_LOG_DEBUG("sizeof(rcu_long_double) is %zu bytes", sizeof(rcu_long_double));
+    RCU_LOG_DEBUG("sizeof(void*) is %zu bytes", sizeof(void *));
+    RCU_LOG_DEBUG("[ RCUNIT INFORMATION END ]");
+}
+
+RCU_API int rcu_init() {
+    rcu_test_machine *machine = &the_test_machine;
+    if (!rcu_is_mach_initialized(machine)) {
+        rcu_init_log();
+        RCU_LOG_DEBUG("Initializing RCUNIT");
+        rcu_print_rcunit_info();
+        rcu_init_test_mach(machine);
+    }
+    return RCU_E_OK;
+}
+
+RCU_API int rcu_destroy() {
+    rcu_test_machine *machine = &the_test_machine;
+    RCU_LOG_DEBUG("Destroying RCUNIT");
+    if (rcu_is_mach_initialized(machine)) {
+        rcu_destroy_test_mach(machine);
+        rcu_destroy_log();
+    }
+    return RCU_E_OK;
+}
+
+int rcu_exit_hook(void *param) {
+    RCU_LOG_FATAL("Terminating");
+    rcu_destroy();
+    return RCU_E_OK;
+}
+
+RCU_API int rcu_set_run_hook(rcu_generic_function run_hook) {
+    rcu_test_machine *machine = &the_test_machine;
+    rcu_init();
+    machine->run_hook = run_hook;
+    RCU_LOG_DEBUG("Test run hook set");
+    return RCU_E_OK;
+}
+
+int rcu_destroy_log() {
+    return RCU_E_OK;
+}
+
+int rcu_init_log() {
+    return RCU_E_OK;
+}
+
+
