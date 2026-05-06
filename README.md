@@ -69,11 +69,14 @@ sudo apt install gcc make iproute2 libssl-dev libyaml-dev
 
 ## Building
 ```
-make all        # build lanecove binary
-make image      # build Docker image (lanecove-tunnel-peer:latest)
-make deb        # build .deb package (output: build/lanecove-tunnel_1.0.0_amd64.deb)
-make rpm        # build .rpm package (output: build/rpm/RPMS/)
-make clean      # remove lanecove binary and build artifacts
+make all              # build lanecove binary
+make test             # run unit tests natively (requires libssl-dev, libyaml-dev)
+make test-image       # build cached Docker image for testing (lanecove-tunnel-test:latest)
+make test-using-docker  # run unit tests via Docker (no local deps required)
+make image            # build Docker image (lanecove-tunnel-peer:latest)
+make deb              # build .deb package (output: build/lanecove-tunnel_1.0.0_amd64.deb)
+make rpm              # build .rpm package (output: build/rpm/RPMS/)
+make clean            # remove lanecove binary and build artifacts
 ```
 
 ## Configuration
@@ -129,14 +132,22 @@ peers:
 
 **Top-level keys:**
 
-| Key | Required | Description |
-|-----|----------|-------------|
-| `interface` | Yes | TUN interface name (e.g. `lanecove0`) |
-| `port` | Yes | UDP port to bind |
-| `private_key_file` | Yes | Path to this peer's X25519 private key PEM file |
-| `pre_shared_key` | No | Optional PSK for HMAC authentication of handshakes |
-| `verbose` | No | Set to `true` to enable debug logging (default: `false`) |
-| `peers` | No | List of peer entries (omit or leave empty for inbound-only) |
+| Key | Required | Default | Description |
+|-----|----------|---------|-------------|
+| `interface` | Yes | — | TUN interface name (e.g. `lanecove0`) |
+| `port` | Yes | — | UDP port to bind |
+| `address` | No | `0.0.0.0` | Local IP address to bind the UDP socket to |
+| `private_key_file` | Yes | — | Path to this peer's X25519 private key PEM file |
+| `pre_shared_key` | No | — | Optional PSK for HMAC authentication of handshakes |
+| `verbose` | No | `false` | Set to `true` to enable debug logging |
+| `keepalive_interval` | No | `25` | Seconds between keepalive packets |
+| `rekey_after` | No | `180` | Seconds before initiating a rekey |
+| `reconnect_interval` | No | `30` | Seconds between reconnect attempts to outbound peers |
+| `session_expiry` | No | `540` | Seconds before an idle session is considered expired |
+| `prev_key_grace` | No | `90` | Seconds the old session key is retained after rekeying |
+| `handshake_timeout` | No | `5` | Seconds before a pending handshake is considered failed |
+| `handshake_cooldown` | No | `5` | Seconds between handshake attempts to the same peer |
+| `peers` | No | — | List of peer entries (omit or leave empty for inbound-only) |
 
 **Per-peer keys (under `peers:`):**
 

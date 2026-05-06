@@ -42,9 +42,17 @@ Keys and YAML configs for local testing are kept in `config/`:
 ```yaml
 interface: lanecove0
 port: 5040
+address: ""                          # optional: bind to specific local IP (default: 0.0.0.0)
 private_key_file: /lanecove/peer-1.key   # absolute path inside container
 pre_shared_key: some-psk
 verbose: false
+keepalive_interval: 25               # seconds between keepalive packets
+rekey_after: 180                     # seconds before initiating a rekey
+reconnect_interval: 30               # seconds between reconnect attempts
+session_expiry: 540                  # seconds before an idle session expires
+prev_key_grace: 90                   # seconds old key is retained after rekey
+handshake_timeout: 5                 # seconds before pending handshake is abandoned
+handshake_cooldown: 5                # seconds between handshake attempts to same peer
 
 peers:
   - public_key: <hex>
@@ -56,11 +64,11 @@ peers:
 ### Session Management
 - Sessions are stored in a flat array (`sessions[]`, max 64)
 - Slot reuse: existing slot found by pub key first, then addr, then free slot
-- Outbound peers checked every 10 seconds; reconnect attempted every 30 seconds on failure
-- Rekeying initiated at 80% of session lifetime (`REKEY_INITIATE_SECS=144`, `REKEY_AFTER_SECS=180`)
+- Outbound peers checked every 10 seconds; reconnect attempted every `reconnect_interval` seconds (default: 30) on failure
+- Rekeying initiated at 80% of `rekey_after` (default: 180s), i.e. at ~144s
 - Handshake is **non-blocking** (async): initiation and response are split across epoll iterations
 - Simultaneous rekey collisions resolved by tie-breaking: higher public key wins
-- **Previous session key grace period** (`PREV_KEY_GRACE_SECS=90`): responder retains old key as decrypt fallback for 90 seconds after rekeying, eliminating packet loss during the initiator's response window (matches WireGuard's overlap window)
+- **Previous session key grace period** (`prev_key_grace`, default 90s): responder retains old key as decrypt fallback after rekeying, eliminating packet loss during the initiator's response window (matches WireGuard's overlap window)
 - **Pre-generated ephemeral keypair**: responder pre-generates the next X25519 ephemeral keypair at startup and after each handshake, so keygen never blocks the event loop on the hot path
 
 ### Handshake Wire Format
@@ -107,12 +115,15 @@ Custom `fprintf`-based logging defined in `common.h`. Global `log_level` variabl
 
 ## Build
 ```
-make all          # compile lanecove binary
-make image        # build Docker image (lanecove-tunnel-peer:latest)
-make run-shell    # open a bash shell in a fresh container
-make deb          # build .deb package (output: build/lanecove-tunnel_1.0.0_amd64.deb)
-make rpm          # build .rpm package (output: build/rpm/RPMS/)
-make clean        # remove compiled binary and build artifacts
+make all                # compile lanecove binary
+make test               # run unit tests natively (requires libssl-dev, libyaml-dev)
+make test-image         # build cached Docker image for testing (lanecove-tunnel-test:latest)
+make test-using-docker  # run unit tests via Docker (no local deps required)
+make image              # build Docker image (lanecove-tunnel-peer:latest)
+make run-shell          # open a bash shell in a fresh container
+make deb                # build .deb package (output: build/lanecove-tunnel_1.0.0_amd64.deb)
+make rpm                # build .rpm package (output: build/rpm/RPMS/)
+make clean              # remove compiled binary and build artifacts
 ```
 
 ## Running With Docker
@@ -147,10 +158,11 @@ make image
 - `scripts/test-tunnel-relay.sh` — ping + curl both peers (10.9.0.2, 10.9.0.3) from relay
 - `scripts/test-tunnel-using-peer-1.sh [target_ip]` — ping + curl from peer-1 (default target: 10.9.0.3)
 - `scripts/test-tunnel-using-peer-2.sh [target_ip]` — ping + curl from peer-2 (default target: 10.9.0.2)
+- `scripts/create-tag.sh` — creates a git tag; auto-increments the rc number from the latest tag if `VERSION` env var is not set
 
 ## Development Utilities
 
-- `sync-on-changes.sh` — watches `src/`, `config/`, `scripts/`, `Makefile`, and `Dockerfile` on macOS using `fswatch` and rsyncs the project to a remote Linux machine on every change; edit the `REMOTE` variable to point to your Linux host
+- `sync-to-anywhere.sh` — watches the project directory on macOS using `fswatch` and rsyncs to a remote Linux machine on every change; edit the `REMOTE` variable to point to your Linux host
 
 ## CLI Options
 
