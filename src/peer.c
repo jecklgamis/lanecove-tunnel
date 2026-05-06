@@ -150,7 +150,7 @@ static int parse_cidr(const char *cidr, ip_prefix_t *out) {
 }
 
 static int load_config(const char *path,
-                       char *tunnel, int *port, char *keyfile,
+                       char *tunnel, char *address, int *port, char *keyfile,
                        char *psk, int *has_psk) {
     FILE *f = fopen(path, "r");
     if (!f) {
@@ -194,6 +194,7 @@ static int load_config(const char *path,
             if (ev.type == YAML_SCALAR_EVENT) {
                 const char *v = (char *)ev.data.scalar.value;
                 if      (strcmp(key, "interface")      == 0) strncpy(tunnel,  v, IF_NAMESIZE - 1);
+                else if (strcmp(key, "address")        == 0) strncpy(address, v, 63);
                 else if (strcmp(key, "port")           == 0) *port = atoi(v);
                 else if (strcmp(key, "private_key_file") == 0) strncpy(keyfile, v, 255);
                 else if (strcmp(key, "verbose")        == 0 && strcmp(v, "true") == 0) log_level = 1;
@@ -788,7 +789,8 @@ done:
         LOG_INFO("Event loop terminated");
 }
 
-static void start_peer(char *tunnel, int port, const unsigned char *psk_key,
+static void start_peer(char *tunnel, const char *address, int port,
+                       const unsigned char *psk_key,
                        EVP_PKEY *static_key, const unsigned char *static_pub) {
     int sock_fd, tun_fd;
 
@@ -807,13 +809,20 @@ static void start_peer(char *tunnel, int port, const unsigned char *psk_key,
 
     struct sockaddr_in bind_addr = {0};
     bind_addr.sin_family = AF_INET;
-    bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (*address) {
+        if (inet_pton(AF_INET, address, &bind_addr.sin_addr) != 1) {
+            LOG_ERROR("Config: invalid address: %s", address);
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    }
     bind_addr.sin_port = htons(port);
     if (bind(sock_fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) < 0) {
         LOG_ERROR("bind: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    LOG_INFO("Listening on UDP 0.0.0.0:%d", port);
+    LOG_INFO("Listening on UDP %s:%d", *address ? address : "0.0.0.0", port);
 
     signal(SIGTERM, handle_signal);
     signal(SIGINT,  handle_signal);
@@ -835,12 +844,13 @@ int main(int argc, char *argv[]) {
     }
     int port = 5040;
     char tunnel[IF_NAMESIZE] = {0};
+    char address[64] = {0};
     char keyfile[256] = "peer.key";
     char psk[256] = {0};
     int has_psk = 0;
 
     LOG_INFO("Loading config: %s", config_path);
-    if (load_config(config_path, tunnel, &port, keyfile, psk, &has_psk) < 0)
+    if (load_config(config_path, tunnel, address, &port, keyfile, psk, &has_psk) < 0)
         exit(EXIT_FAILURE);
 
     if (*tunnel == '\0') { LOG_ERROR("Config: interface is required"); exit(EXIT_FAILURE); }
@@ -870,7 +880,7 @@ int main(int argc, char *argv[]) {
         LOG_WARN("No PSK — handshake unauthenticated (MITM-vulnerable)");
     }
 
-    start_peer(tunnel, port, has_psk ? psk_key : NULL, static_key, static_pub);
+    start_peer(tunnel, address, port, has_psk ? psk_key : NULL, static_key, static_pub);
     EVP_PKEY_free(static_key);
     return 0;
 }
