@@ -104,6 +104,13 @@ port: 5040
 private_key_file: /etc/lanecove/relay.key
 pre_shared_key: change-me
 verbose: false
+keepalive_interval: 25
+rekey_after: 180
+reconnect_interval: 30
+session_expiry: 540
+prev_key_grace: 90
+handshake_timeout: 5
+handshake_cooldown: 5
 
 peers:
   - public_key: <peer-1-public-key-hex>
@@ -117,6 +124,7 @@ peers:
 - `pre_shared_key` — must match on all nodes. Used for HMAC authentication of handshakes.
 - `allowed_ips` — the relay uses `/32` per peer, accepting packets only from each peer's specific overlay IP.
 - No `endpoint` — the relay never initiates connections.
+- All timing fields are optional; values shown are the defaults.
 
 ### Peer
 
@@ -130,6 +138,13 @@ port: 5040
 private_key_file: /etc/lanecove/peer-1.key
 pre_shared_key: change-me
 verbose: false
+keepalive_interval: 25
+rekey_after: 180
+reconnect_interval: 30
+session_expiry: 540
+prev_key_grace: 90
+handshake_timeout: 5
+handshake_cooldown: 5
 
 peers:
   - public_key: <relay-public-key-hex>
@@ -141,19 +156,28 @@ peers:
 - `endpoint` — the relay's public hostname or IP and UDP port. Required on peers; omit on the relay.
 - `allowed_ips` — peers use `/24` (the full overlay subnet) so all overlay traffic is routed through the relay.
 - `pre_shared_key` — must match the relay and all other peers.
+- All timing fields are optional; values shown are the defaults.
 
 ### Config Reference
 
-| Key | Required | Description |
-|-----|----------|-------------|
-| `interface` | Yes | TUN interface name |
-| `port` | Yes | UDP port to bind |
-| `private_key_file` | Yes | Path to this node's X25519 private key PEM file |
-| `pre_shared_key` | No | PSK for HMAC handshake authentication |
-| `verbose` | No | `true` to enable debug logging |
-| `peers[].public_key` | Yes | Peer's public key (hex) |
-| `peers[].endpoint` | No | `host:port` to connect to; omit for inbound-only nodes |
-| `peers[].allowed_ips` | Yes | CIDRs allowed from this peer |
+| Key | Required | Default | Description |
+|-----|----------|---------|-------------|
+| `interface` | Yes | — | TUN interface name |
+| `port` | Yes | — | UDP port to bind |
+| `address` | No | `0.0.0.0` | Local IP address to bind the UDP socket to |
+| `private_key_file` | Yes | — | Path to this node's X25519 private key PEM file |
+| `pre_shared_key` | No | — | PSK for HMAC handshake authentication |
+| `verbose` | No | `false` | `true` to enable debug logging |
+| `keepalive_interval` | No | `25` | Seconds between keepalive packets |
+| `rekey_after` | No | `180` | Seconds before initiating a rekey |
+| `reconnect_interval` | No | `30` | Seconds between reconnect attempts to outbound peers |
+| `session_expiry` | No | `540` | Seconds before an idle session is considered expired |
+| `prev_key_grace` | No | `90` | Seconds the old session key is retained after rekeying |
+| `handshake_timeout` | No | `5` | Seconds before a pending handshake is abandoned |
+| `handshake_cooldown` | No | `5` | Seconds between handshake attempts to the same peer |
+| `peers[].public_key` | Yes | — | Peer's public key (hex) |
+| `peers[].endpoint` | No | — | `host:port` to connect to; omit for inbound-only nodes |
+| `peers[].allowed_ips` | Yes | — | CIDRs allowed from this peer |
 
 ---
 
