@@ -8,6 +8,7 @@
 #define PREV_KEY_GRACE_SECS        90
 #define HANDSHAKE_COOLDOWN_SECS     5
 #define HANDSHAKE_TIMEOUT_SECS      5
+
 #define RECONNECT_INTERVAL_SECS    30
 #define SESSION_EXPIRY_SECS       (3 * REKEY_AFTER_SECS)
 #define KEEPALIVE_INTERVAL_SECS    25
@@ -63,9 +64,12 @@ typedef struct {
     struct sockaddr_in server_addr;
 } pending_hs_t;
 
-static int cfg_rekey_after        = REKEY_AFTER_SECS;
-static int cfg_reconnect_interval = RECONNECT_INTERVAL_SECS;
-static int cfg_session_expiry     = SESSION_EXPIRY_SECS;
+static int cfg_rekey_after          = REKEY_AFTER_SECS;
+static int cfg_reconnect_interval   = RECONNECT_INTERVAL_SECS;
+static int cfg_session_expiry       = SESSION_EXPIRY_SECS;
+static int cfg_prev_key_grace       = PREV_KEY_GRACE_SECS;
+static int cfg_handshake_timeout    = HANDSHAKE_TIMEOUT_SECS;
+static int cfg_handshake_cooldown   = HANDSHAKE_COOLDOWN_SECS;
 
 static peer_config_t  peer_configs[MAX_PEERS];
 static int            peer_config_count = 0;
@@ -201,9 +205,12 @@ static int load_config(const char *path,
                 else if (strcmp(key, "address")          == 0) strncpy(address, v, 63);
                 else if (strcmp(key, "port")             == 0) *port = atoi(v);
                 else if (strcmp(key, "keepalive_interval")  == 0) *keepalive_interval      = atoi(v);
-                else if (strcmp(key, "rekey_after")         == 0) cfg_rekey_after            = atoi(v);
-                else if (strcmp(key, "reconnect_interval")  == 0) cfg_reconnect_interval     = atoi(v);
-                else if (strcmp(key, "session_expiry")      == 0) cfg_session_expiry         = atoi(v);
+                else if (strcmp(key, "rekey_after")          == 0) cfg_rekey_after          = atoi(v);
+                else if (strcmp(key, "reconnect_interval")  == 0) cfg_reconnect_interval   = atoi(v);
+                else if (strcmp(key, "session_expiry")      == 0) cfg_session_expiry       = atoi(v);
+                else if (strcmp(key, "prev_key_grace")      == 0) cfg_prev_key_grace       = atoi(v);
+                else if (strcmp(key, "handshake_timeout")   == 0) cfg_handshake_timeout    = atoi(v);
+                else if (strcmp(key, "handshake_cooldown")  == 0) cfg_handshake_cooldown   = atoi(v);
                 else if (strcmp(key, "private_key_file") == 0) strncpy(keyfile, v, 255);
                 else if (strcmp(key, "verbose")        == 0 && strcmp(v, "true") == 0) log_level = 1;
                 else if (strcmp(key, "pre_shared_key") == 0) {
@@ -378,7 +385,7 @@ static void session_init(peer_session_t *s, struct sockaddr_in *addr,
     if (was_active) {
         memcpy(s->prev_session_key, s->session_key, CRYPTO_KEY_LEN);
         s->prev_key_active = 1;
-        s->prev_key_expires = time(NULL) + PREV_KEY_GRACE_SECS;
+        s->prev_key_expires = time(NULL) + cfg_prev_key_grace;
     } else {
         s->prev_key_active = 0;
     }
@@ -539,7 +546,7 @@ static void event_loop(int tun_fd, int sock_fd, EVP_PKEY *static_key,
             /* Expire timed-out pending handshakes */
             for (int j = 0; j < MAX_PEERS; j++) {
                 pending_hs_t *p = &pending_hs[j];
-                if (!p->active || now - p->sent_at < HANDSHAKE_TIMEOUT_SECS) continue;
+                if (!p->active || now - p->sent_at < cfg_handshake_timeout) continue;
                 char ip_str[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &peer_configs[p->cfg_idx].endpoint.sin_addr, ip_str, sizeof(ip_str));
                 LOG_WARN("Handshake to %s:%d timed out — will retry in %ds",
@@ -676,7 +683,7 @@ static void event_loop(int tun_fd, int sock_fd, EVP_PKEY *static_key,
                 if (skip) continue;
 
                 peer_session_t *existing = find_session_by_addr(&src_addr);
-                if (existing && now - existing->last_handshake < HANDSHAKE_COOLDOWN_SECS) {
+                if (existing && now - existing->last_handshake < cfg_handshake_cooldown) {
                     LOG_WARN("Handshake cooldown for %s:%d — ignoring",
                              inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port));
                     continue;
@@ -699,7 +706,7 @@ static void event_loop(int tun_fd, int sock_fd, EVP_PKEY *static_key,
                     continue;
                 }
                 peer_session_t *by_pub = find_session_by_pub(peer_pub);
-                if (by_pub && now - by_pub->last_handshake < HANDSHAKE_COOLDOWN_SECS) {
+                if (by_pub && now - by_pub->last_handshake < cfg_handshake_cooldown) {
                     LOG_WARN("Handshake cooldown for peer key — ignoring");
                     continue;
                 }

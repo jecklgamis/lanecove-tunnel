@@ -7,6 +7,9 @@ keepalive_interval: 25
 rekey_after: 180
 reconnect_interval: 30
 session_expiry: 540
+prev_key_grace: 90
+handshake_timeout: 5
+handshake_cooldown: 5
 
 peers:
   - public_key: <relay-public-key-hex>
