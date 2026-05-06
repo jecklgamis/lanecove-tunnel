@@ -318,6 +318,5 @@ int main(int argc, char *argv[]) {
     rcu_add_test(test_decrypt_truncated_input_fails);
     rcu_add_test(test_encrypt_produces_different_ciphertext_each_time);
 
-    rcu_run_tests();
-    return 0;
+    return rcu_run_tests();
 }
