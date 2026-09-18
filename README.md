@@ -280,8 +280,8 @@ Magic is `0xdeadbeefcafebabe`. Packets with a bad magic header, invalid GCM tag,
 | **Kernel module** | No (userspace) | Yes | No (userspace) | Partial (xfrm) | Yes | No |
 | **IPv6 support** | No | Yes | Yes | Yes | Yes | Yes |
 | **Platforms** | Linux only | Linux, macOS, Windows, BSD | Cross-platform | Cross-platform | Linux | Cross-platform |
-| **Throughput** | Low (single-threaded) | High (kernel) | Medium | High (kernel) | High (kernel) | Medium |
-| **Lines of code** | ~1,600 | ~4,000 (kernel) | ~100,000+ | ~500,000+ | — | ~50,000 |
+| **Throughput** | Low-medium (userspace, multi-threaded) | High (kernel) | Medium | High (kernel) | High (kernel) | Medium |
+| **Lines of code** | ~1,900 | ~4,000 (kernel) | ~100,000+ | ~500,000+ | — | ~50,000 |
 | **Purpose** | Simple/small-scale | Production | Production | Production | Infrastructure | Mesh VPN |
 
 ---

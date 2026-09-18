@@ -169,6 +169,7 @@ peers:
 | `prev_key_grace` | No | `90` | Seconds the old session key is retained after rekeying |
 | `handshake_timeout` | No | `5` | Seconds before a pending handshake is abandoned |
 | `handshake_cooldown` | No | `5` | Seconds between handshake attempts to the same peer |
+| `worker_threads` | No | `min(4, nproc)` | Packet-processing worker threads |
 | `peers[].public_key` | Yes | — | Peer's public key (hex) |
 | `peers[].endpoint` | No | — | `host:port` to connect to; omit for inbound-only nodes |
 | `peers[].allowed_ips` | Yes | — | CIDRs allowed from this peer |
