@@ -94,10 +94,12 @@ sudo ./scripts/lanecove-create-tunnel.sh lanecove1 10.9.0.2/24 10.9.0.0/24
 sudo ./scripts/lanecove-create-tunnel.sh lanecove2 10.9.0.3/24 10.9.0.0/24
 ```
 
-**5. Update `interface:` in each config** to match the TUN name above:
-- `/etc/lanecove/relay.yaml` → `interface: lanecove0`
-- `/etc/lanecove/peer-1.yaml` → `interface: lanecove1`
-- `/etc/lanecove/peer-2.yaml` → `interface: lanecove2`
+**5. Update `interface:` and `port:` in each config** — all three configs default to the same `port: 5040`, which only works when peers run on separate hosts. Since all three processes share one machine here, give peer-1 and peer-2 their own listening port (the relay keeps `5040`; peers' `endpoint: 127.0.0.1:5040` stays pointed at the relay's port, unchanged):
+- `/etc/lanecove/relay.yaml` → `interface: lanecove0`, `port: 5040`
+- `/etc/lanecove/peer-1.yaml` → `interface: lanecove1`, `port: 5041`
+- `/etc/lanecove/peer-2.yaml` → `interface: lanecove2`, `port: 5042`
+
+If a peer's `port:` collides with the relay's, the handshake will fail with `Failed to decrypt server identity — possible MITM` — that error is misleading here; it just means two processes on this host are fighting over the same UDP port.
 
 **6. Run each peer** (3 terminals)
 ```bash
