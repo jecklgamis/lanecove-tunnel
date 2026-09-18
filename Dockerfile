@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y gcc make libssl-dev libyaml-dev && rm -
 
 WORKDIR /lanecove
 COPY src/common.c src/common.h src/peer.c ./
-RUN gcc -o lanecove peer.c common.c -lssl -lcrypto -lyaml
+RUN gcc -pthread -o lanecove peer.c common.c -lssl -lcrypto -lyaml
 
 FROM debian:bookworm-slim
 

@@ -37,7 +37,7 @@ Peers communicate with each other via the relay — traffic from peer-1 to peer-
 - **Multi-site connectivity** — linking servers across different cloud providers or regions through a single relay without needing cloud VPN products.
 - **Development and testing** — exposing a local dev machine's services to a remote peer (e.g. a CI runner or a colleague's machine) without port forwarding.
 
-The single-threaded relay is suited for low-to-moderate traffic between a small number of peers, not high-throughput production workloads.
+The relay is suited for low-to-moderate traffic between a small number of peers, not high-throughput production workloads.
 
 ## Features
 
@@ -55,7 +55,7 @@ The single-threaded relay is suited for low-to-moderate traffic between a small 
 - **Linux only** — uses `linux/if_tun.h` and `/dev/net/tun`; does not compile on macOS (use Docker)
 - **IPv4 only** — TUN packets are validated as IPv4; IPv6 and non-IP traffic are dropped
 - **UDP transport** — no packet ordering guarantees; packet loss is not retransmitted
-- **Single-threaded** — one epoll loop handles all I/O; not designed for high throughput
+- **Single-process** — a configurable pool of worker threads (`worker_threads`, default `min(4, nproc)`) parallelizes packet crypto across cores, but it's still one process per peer/relay with no multi-host failover
 - **Not audited** — not hardened for production use
 
 ## Requirements

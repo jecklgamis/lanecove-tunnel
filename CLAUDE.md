@@ -53,6 +53,7 @@ session_expiry: 540                  # seconds before an idle session expires
 prev_key_grace: 90                   # seconds old key is retained after rekey
 handshake_timeout: 5                 # seconds before pending handshake is abandoned
 handshake_cooldown: 5                # seconds between handshake attempts to same peer
+worker_threads: 4                    # optional: packet-processing worker threads (default: min(4, nproc))
 
 peers:
   - public_key: <hex>
@@ -70,6 +71,11 @@ peers:
 - Simultaneous rekey collisions resolved by tie-breaking: higher public key wins
 - **Previous session key grace period** (`prev_key_grace`, default 90s): responder retains old key as decrypt fallback after rekeying, eliminating packet loss during the initiator's response window (matches WireGuard's overlap window)
 - **Pre-generated ephemeral keypair**: responder pre-generates the next X25519 ephemeral keypair at startup and after each handshake, so keygen never blocks the event loop on the hot path
+
+### Concurrency
+- Packet I/O runs on a pool of `worker_threads` threads (config key, default `min(4, nproc)`), each with its own `epoll` instance registered on the shared TUN fd and UDP socket via `EPOLLEXCLUSIVE` (exactly one worker wakes per ready event) and its own OpenSSL cipher contexts — different peers' packets are encrypted/decrypted fully in parallel
+- A dedicated housekeeping thread owns the periodic rekey/expiry/keepalive checks (including the blocking DNS `resolve_endpoint()` call), keeping it off the packet-processing hot path
+- Two lock granularities protect the shared session table: a global `pthread_rwlock_t` for structural changes (new/expired sessions, pending handshakes — read-locked for the frequent per-packet lookups, write-locked for the rare handshake/expiry paths), and a per-session `pthread_mutex_t` for the fields mutated on every packet (sequence numbers, replay window, session key) — so only packets for the *same* peer ever serialize against each other
 
 ### Handshake Wire Format
 ```

@@ -21,7 +21,7 @@ RCUNIT_SRC := rcunit/src/rcunit.c rcunit/src/rcunit_assert.c rcunit/src/rcunit_e
               rcunit/src/rcunit_thread.c rcunit/src/rcunit_util.c
 
 all:
-	gcc $(CFLAGS) -o lanecove src/peer.c src/common.c -lssl -lcrypto -lyaml
+	gcc $(CFLAGS) -pthread -o lanecove src/peer.c src/common.c -lssl -lcrypto -lyaml
 	chmod +x lanecove
 image:
 	docker build -t $(DOCKER_IMAGE) .
