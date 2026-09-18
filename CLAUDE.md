@@ -121,6 +121,7 @@ make test-image         # build cached Docker image for testing (lanecove-tunnel
 make test-using-docker  # run unit tests via Docker (no local deps required)
 make image              # build Docker image (lanecove-tunnel-peer:latest)
 make run-shell          # open a bash shell in a fresh container
+make run                # run the image with its default entrypoint (lanecove-tunnel-peer container)
 make deb                # build .deb package (output: build/lanecove-tunnel_1.0.0_amd64.deb)
 make rpm                # build .rpm package (output: build/rpm/RPMS/)
 make clean              # remove compiled binary and build artifacts
@@ -149,15 +150,17 @@ make image
   - **HTTP proxy** on `0.0.0.0:15050` — L7 with upstream connection pooling (~130 requests/connection); eliminates per-request TCP handshake cost through the tunnel; recommended for HTTP workloads
   - Admin interface on `0.0.0.0:9901`
 - `scripts/lanecove-create-tunnel.sh <tunnel> <ip/cidr> [routes...]` — creates TUN interface, assigns overlay IP, disables ICMP redirects
-- `scripts/run-relay.sh` — native Linux wrapper: creates TUN (`lanecove0`, `10.9.0.1/24`) and starts relay from `config/relay.yaml`
-- `scripts/run-relay-in-docker.sh` — runs relay container from `config/relay.yaml`; mounts key, exposes UDP 5040 and Envoy admin 9901
-- `scripts/run-peer-1-in-docker.sh` — runs peer-1 container from `config/peer-1.yaml`; mounts key, exposes ports for UDP tunnel, Envoy TCP/HTTP proxy, and admin
+- `scripts/run-relay.sh` — native Linux wrapper: runs `./lanecove -c config/relay.yaml` (does not create the TUN interface itself — run `lanecove-create-tunnel.sh` first)
+- `scripts/run-peer-1.sh` / `scripts/run-peer-2.sh` — native Linux wrappers: run `./lanecove -c config/peer-1.yaml` / `config/peer-2.yaml`
+- `scripts/run-relay-in-docker.sh` — runs relay container from `config/relay.yaml` on the shared `lanecove-net` Docker network (created if missing); mounts key, exposes UDP 5040 and Envoy admin 9901
+- `scripts/run-peer-1-in-docker.sh` — runs peer-1 container from `config/peer-1.yaml` on `lanecove-net`; mounts key, exposes ports for UDP tunnel, Envoy TCP/HTTP proxy, and admin
 - `scripts/run-peer-2-in-docker.sh` — same as peer-1 but for peer-2
 - `scripts/exec-shell-to-relay-container.sh` — open a bash shell in the running relay container
 - `scripts/exec-shell-to-peer-1-container.sh` / `scripts/exec-shell-to-peer-2-container.sh` — open a bash shell in a running peer container
 - `scripts/test-tunnel-relay.sh` — ping + curl both peers (10.9.0.2, 10.9.0.3) from relay
 - `scripts/test-tunnel-using-peer-1.sh [target_ip]` — ping + curl from peer-1 (default target: 10.9.0.3)
 - `scripts/test-tunnel-using-peer-2.sh [target_ip]` — ping + curl from peer-2 (default target: 10.9.0.2)
+- `scripts/run-perf-test.sh [base_url]` — runs a Gatling load test container against an Envoy HTTP proxy endpoint (defaults to peer-1's `:15052` on the detected host IP)
 - `scripts/create-tag.sh` — creates a git tag; auto-increments the rc number from the latest tag if `VERSION` env var is not set
 
 ## Development Utilities
