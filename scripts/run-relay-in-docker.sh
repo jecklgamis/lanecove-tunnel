@@ -8,9 +8,11 @@ CONFIG_DIR="${SCRIPT_DIR}/../config"
 KEY_CONTAINER=$(python3 -c "import yaml; cfg=yaml.safe_load(open('${CONFIG_ABS}')); print(cfg.get('private_key_file','peer.key'))")
 KEY_HOST="${CONFIG_DIR}/$(basename "$KEY_CONTAINER")"
 
+docker network create lanecove-net 2>/dev/null || true
 docker rm -f lanecove-tunnel-relay 2>/dev/null || true
 docker run \
   --name lanecove-tunnel-relay \
+  --network lanecove-net \
   --cap-add=NET_ADMIN \
   --device=/dev/net/tun \
   -v "${KEY_HOST}:${KEY_CONTAINER}:ro" \
