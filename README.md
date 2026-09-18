@@ -178,6 +178,12 @@ curl http://localhost:9902/stats  # Envoy admin
 | `ENVOY_UPSTREAM_HOST` | — | Upstream host for Envoy; if unset, Envoy is not started |
 | `ENVOY_UPSTREAM_PORT` | `80` | Upstream port for Envoy |
 
+## Request Path
+
+Example request path for `curl http://<host_ip>:15052` against peer-1, routed through the tunnel to peer-2's nginx:
+
+![curl request path](docs/images/curl-request-path.png)
+
 ## Security Details
 
 ### Handshake Flow
