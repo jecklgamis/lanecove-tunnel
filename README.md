@@ -5,7 +5,6 @@
 📖 [User Guide](https://jecklgamis.github.io/lanecove-tunnel/)
 
 A simple Linux **hub-and-spoke layer 3 overlay network** using a TUN virtual interface over UDP. A working VPN implementation with a deliberately small feature set.
-Warning: not for production use.
 
 Inspired by [WireGuard](https://www.wireguard.com/), this project implements similar concepts — X25519 key exchange, identity hiding, AllowedIPs routing, and session rekeying — reimplemented from scratch in C.
 

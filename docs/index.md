@@ -60,32 +60,26 @@ Both packages install:
 
 ## Key Generation
 
-Each node (relay and every peer) needs its own X25519 key pair. Run this once on any machine with the package installed:
+Each node (relay and every peer) needs its own X25519 key pair. Generate it **locally on that machine** — pass only that node's own name, so the private key never has to leave the machine it belongs to:
 
 ```bash
-lanecove-generate-peer-keys.sh relay peer-1 peer-2
+cd /etc/lanecove && sudo lanecove-generate-peer-keys.sh <relay|peer-1|peer-2>
 ```
 
-This produces a `.key` (private) and `.crt` (public) file for each name. Copy the files to each machine as follows:
+This produces a `.key` (private) and `.crt` (public) file for that node in `/etc/lanecove/`.
 
-| Machine | Files needed |
+Copy only the `.crt` (public key) files between machines — **never** the `.key` files:
+
+| Machine | `.crt` files it needs from other machines |
 |---------|-------------|
-| relay   | `relay.key`, `peer-1.crt`, `peer-2.crt` |
-| peer-1  | `peer-1.key`, `relay.crt` |
-| peer-2  | `peer-2.key`, `relay.crt` |
-
-**Never share `.key` files.** Only distribute `.crt` (public key) files.
-
-Place keys in a secure location, e.g. `/etc/lanecove/`:
-
-```bash
-sudo install -m 640 -o root -g root relay.key /etc/lanecove/relay.key
-```
+| relay   | `peer-1.crt`, `peer-2.crt` |
+| peer-1  | `relay.crt` |
+| peer-2  | `relay.crt` |
 
 To extract the public key hex from a `.crt` file (needed when editing configs):
 
 ```bash
-lanecove-extract-pubkey-hex.sh relay.crt
+lanecove-extract-pubkey-hex.sh /etc/lanecove/relay.crt
 ```
 
 ---
@@ -178,6 +172,18 @@ peers:
 | `peers[].public_key` | Yes | — | Peer's public key (hex) |
 | `peers[].endpoint` | No | — | `host:port` to connect to; omit for inbound-only nodes |
 | `peers[].allowed_ips` | Yes | — | CIDRs allowed from this peer |
+
+---
+
+## Create the TUN Interface
+
+Installing the package does **not** create the TUN interface — `lanecove-peer` opens `lanecove0` at startup but does not assign it an IP or bring it up. Create it manually before starting the service, using the appropriate overlay IP for this node's role:
+
+```bash
+sudo lanecove-create-tunnel.sh lanecove0 10.9.0.1/24                    # relay
+sudo lanecove-create-tunnel.sh lanecove0 10.9.0.2/24 10.9.0.0/24        # peer-1
+sudo lanecove-create-tunnel.sh lanecove0 10.9.0.3/24 10.9.0.0/24        # peer-2
+```
 
 ---
 
