@@ -4,10 +4,10 @@
 
 📖 [User Guide](https://jecklgamis.github.io/lanecove-tunnel/)
 
-A simple Linux **hub-and-spoke layer 3 overlay network** using a TUN virtual interface over UDP. Implements a basic VPN for learning purposes.
+A simple Linux **hub-and-spoke layer 3 overlay network** using a TUN virtual interface over UDP. A working VPN implementation with a deliberately small feature set.
 Warning: not for production use.
 
-Inspired by [WireGuard](https://www.wireguard.com/), this project explores similar concepts — X25519 key exchange, identity hiding, AllowedIPs routing, and session rekeying — reimplemented from scratch in C as a learning exercise.
+Inspired by [WireGuard](https://www.wireguard.com/), this project implements similar concepts — X25519 key exchange, identity hiding, AllowedIPs routing, and session rekeying — reimplemented from scratch in C.
 
 It creates a virtual IP network (`10.9.0.0/24`) layered on top of an existing underlay network, with traffic encapsulated inside UDP datagrams. Layer 3 means the tunnel operates at the IP (network) layer — it forwards raw IP packets between peers, not Ethernet frames. Each peer has a TUN interface with an IP address, and routing rules direct traffic through it. Broadcast, multicast, and non-IP traffic are not supported.
 
@@ -37,7 +37,6 @@ Peers communicate with each other via the relay — traffic from peer-1 to peer-
 - **Secure service access** — a peer runs a service (e.g. a web server or database) accessible only over the overlay IP, keeping it off the public internet.
 - **Multi-site connectivity** — linking servers across different cloud providers or regions through a single relay without needing cloud VPN products.
 - **Development and testing** — exposing a local dev machine's services to a remote peer (e.g. a CI runner or a colleague's machine) without port forwarding.
-- **Learning and experimentation** — the primary goal of this project: understanding how VPN protocols work (DH key exchange, AES-GCM, replay protection, rekeying).
 
 The single-threaded relay is suited for low-to-moderate traffic between a small number of peers, not high-throughput production workloads.
 
@@ -58,7 +57,7 @@ The single-threaded relay is suited for low-to-moderate traffic between a small 
 - **IPv4 only** — TUN packets are validated as IPv4; IPv6 and non-IP traffic are dropped
 - **UDP transport** — no packet ordering guarantees; packet loss is not retransmitted
 - **Single-threaded** — one epoll loop handles all I/O; not designed for high throughput
-- **Learning project** — not audited, not hardened for production use
+- **Not audited** — not hardened for production use
 
 ## Requirements
 Linux (tested on Ubuntu 22.04 LTS), gcc, make, iproute2, libssl-dev, libyaml-dev
@@ -67,118 +66,58 @@ Linux (tested on Ubuntu 22.04 LTS), gcc, make, iproute2, libssl-dev, libyaml-dev
 sudo apt install gcc make iproute2 libssl-dev libyaml-dev
 ```
 
-## Building
-```
-make all              # build lanecove binary
-make test             # run unit tests natively (requires libssl-dev, libyaml-dev)
-make test-image       # build cached Docker image for testing (lanecove-tunnel-test:latest)
-make test-using-docker  # run unit tests via Docker (no local deps required)
-make image            # build Docker image (lanecove-tunnel-peer:latest)
-make deb              # build .deb package (output: build/lanecove-tunnel_1.0.0_amd64.deb)
-make rpm              # build .rpm package (output: build/rpm/RPMS/)
-make clean            # remove lanecove binary and build artifacts
-```
+## Running Natively (Linux)
 
-## Configuration
+All three peers can run on one Linux machine by giving each a unique TUN interface name and having the peers connect to `127.0.0.1`.
 
-The `lanecove` binary is configured via a YAML file. Sample configs are in `config/`.
-
-**Relay** (`config/relay.yaml`) — inbound-only, no `endpoint`:
-```yaml
-interface: lanecove0
-port: 5040
-private_key_file: /lanecove/relay.key
-pre_shared_key: some-psk
-verbose: false
-
-peers:
-  - public_key: <peer-1-pubkey-hex>
-    allowed_ips:
-      - 10.9.0.2/32
-  - public_key: <peer-2-pubkey-hex>
-    allowed_ips:
-      - 10.9.0.3/32
-```
-
-**Peer 1** (`config/peer-1.yaml`) — connects outbound to relay:
-```yaml
-interface: lanecove0
-port: 5040
-private_key_file: /lanecove/peer-1.key
-pre_shared_key: some-psk
-verbose: false
-
-peers:
-  - public_key: <relay-pubkey-hex>
-    endpoint: <relay-host-or-ip>:5040
-    allowed_ips:
-      - 10.9.0.0/24
-```
-
-**Peer 2** (`config/peer-2.yaml`) — same as peer-1 with its own key:
-```yaml
-interface: lanecove0
-port: 5040
-private_key_file: /lanecove/peer-2.key
-pre_shared_key: some-psk
-verbose: false
-
-peers:
-  - public_key: <relay-pubkey-hex>
-    endpoint: <relay-host-or-ip>:5040
-    allowed_ips:
-      - 10.9.0.0/24
-```
-
-**Top-level keys:**
-
-| Key | Required | Default | Description |
-|-----|----------|---------|-------------|
-| `interface` | Yes | — | TUN interface name (e.g. `lanecove0`) |
-| `port` | Yes | — | UDP port to bind |
-| `address` | No | `0.0.0.0` | Local IP address to bind the UDP socket to |
-| `private_key_file` | Yes | — | Path to this peer's X25519 private key PEM file |
-| `pre_shared_key` | No | — | Optional PSK for HMAC authentication of handshakes |
-| `verbose` | No | `false` | Set to `true` to enable debug logging |
-| `keepalive_interval` | No | `25` | Seconds between keepalive packets |
-| `rekey_after` | No | `180` | Seconds before initiating a rekey |
-| `reconnect_interval` | No | `30` | Seconds between reconnect attempts to outbound peers |
-| `session_expiry` | No | `540` | Seconds before an idle session is considered expired |
-| `prev_key_grace` | No | `90` | Seconds the old session key is retained after rekeying |
-| `handshake_timeout` | No | `5` | Seconds before a pending handshake is considered failed |
-| `handshake_cooldown` | No | `5` | Seconds between handshake attempts to the same peer |
-| `peers` | No | — | List of peer entries (omit or leave empty for inbound-only) |
-
-**Per-peer keys (under `peers:`):**
-
-| Key | Required | Description |
-|-----|----------|-------------|
-| `public_key` | Yes | Peer's X25519 public key (hex-encoded) |
-| `endpoint` | No | `host:port` to connect to; omit for inbound-only peers (e.g. relay) |
-| `allowed_ips` | Yes | List of CIDR prefixes allowed from this peer (used for routing and source validation) |
-
-The relay uses `/32` per peer because it only accepts packets sourced from each peer's specific overlay IP. Peers use `/24` (the full subnet) because all overlay traffic — including traffic destined for other peers — is routed through the relay as the single gateway.
-
-## Key Generation
-
+**1. Install dependencies**
 ```bash
-./scripts/lanecove-generate-peer-keys.sh relay peer-1 peer-2
-# produces: config/relay.key/.crt, config/peer-1.key/.crt, config/peer-2.key/.crt
-
-# Inspect key hex values (private + public) from a .key file
-./scripts/lanecove-extract-keys-hex.sh config/peer-1.key
-
-# Extract just the public key hex from a .crt file
-./scripts/lanecove-extract-pubkey-hex.sh config/peer-1.crt
+sudo apt install libssl-dev libyaml-dev iproute2
 ```
 
-Distribute public keys (`.crt` files only — never share `.key` files):
+**2. Build**
+```bash
+make all
+```
 
-| Machine | Needs |
-|---------|-------|
-| relay   | `relay.key`, `peer-1.crt`, `peer-2.crt` |
-| peer-1  | `peer-1.key`, `relay.crt` |
-| peer-2  | `peer-2.key`, `relay.crt` |
+**3. Copy keys and configs**
+```bash
+sudo mkdir -p /etc/lanecove
+sudo cp config/relay.key config/peer-1.key config/peer-2.key /etc/lanecove/
+sudo cp config/relay.yaml config/peer-1.yaml config/peer-2.yaml /etc/lanecove/
+```
+
+**4. Create TUN interfaces** (one per peer, each with a unique name)
+```bash
+sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.1/24
+sudo ./scripts/lanecove-create-tunnel.sh lanecove1 10.9.0.2/24 10.9.0.0/24
+sudo ./scripts/lanecove-create-tunnel.sh lanecove2 10.9.0.3/24 10.9.0.0/24
+```
+
+**5. Update `interface:` in each config** to match the TUN name above:
+- `/etc/lanecove/relay.yaml` → `interface: lanecove0`
+- `/etc/lanecove/peer-1.yaml` → `interface: lanecove1`
+- `/etc/lanecove/peer-2.yaml` → `interface: lanecove2`
+
+**6. Run each peer** (3 terminals)
+```bash
+# Terminal 1 — relay
+sudo ./lanecove -c /etc/lanecove/relay.yaml
+
+# Terminal 2 — peer-1
+sudo ./lanecove -c /etc/lanecove/peer-1.yaml
+
+# Terminal 3 — peer-2
+sudo ./lanecove -c /etc/lanecove/peer-2.yaml
+```
+
+**7. Test**
+```bash
+ping 10.9.0.2   # relay → peer-1
+ping 10.9.0.3   # relay → peer-2
+```
+
+---
 
 ## Running With Docker
 
@@ -202,13 +141,6 @@ make image
 ./scripts/test-tunnel-using-peer-1.sh       # ping + curl peer-2 from peer-1
 ./scripts/test-tunnel-using-peer-2.sh       # ping + curl peer-1 from peer-2
 ./scripts/test-tunnel-relay.sh              # ping + curl both peers from relay
-```
-
-**Shell access:**
-```bash
-./scripts/exec-shell-to-relay-container.sh
-./scripts/exec-shell-to-peer-1-container.sh
-./scripts/exec-shell-to-peer-2-container.sh
 ```
 
 ### Port Mapping
@@ -249,148 +181,6 @@ curl http://localhost:9902/stats  # Envoy admin
 | `PEER_CONFIG` | `peer.yaml` | Path to YAML config file inside container |
 | `ENVOY_UPSTREAM_HOST` | — | Upstream host for Envoy; if unset, Envoy is not started |
 | `ENVOY_UPSTREAM_PORT` | `80` | Upstream port for Envoy |
-
-## Installing via .deb Package
-
-Build and install the package on each machine:
-
-```bash
-make deb
-sudo dpkg -i build/lanecove-tunnel_1.0.0_amd64.deb
-```
-
-Edit the config for the role this machine will play:
-```bash
-sudo vi /etc/lanecove/relay.yaml    # on the relay machine
-sudo vi /etc/lanecove/peer-1.yaml   # on peer-1 machine
-sudo vi /etc/lanecove/peer-2.yaml   # on peer-2 machine
-```
-
-Enable and start the appropriate service:
-```bash
-sudo systemctl enable --now lanecove-relay    # relay machine
-sudo systemctl enable --now lanecove-peer-1   # peer-1 machine
-sudo systemctl enable --now lanecove-peer-2   # peer-2 machine
-```
-
-To uninstall:
-```bash
-sudo dpkg -r lanecove-tunnel
-```
-
-## Installing via .rpm Package (Red Hat / Fedora / CentOS)
-
-Build and install the package on each machine:
-
-```bash
-make rpm
-sudo rpm -i build/rpm/RPMS/x86_64/lanecove-tunnel-1.0.0-1.x86_64.rpm
-```
-
-Edit the config for the role this machine will play:
-```bash
-sudo vi /etc/lanecove/relay.yaml    # on the relay machine
-sudo vi /etc/lanecove/peer-1.yaml   # on peer-1 machine
-sudo vi /etc/lanecove/peer-2.yaml   # on peer-2 machine
-```
-
-Enable and start the appropriate service:
-```bash
-sudo systemctl enable --now lanecove-relay    # relay machine
-sudo systemctl enable --now lanecove-peer-1   # peer-1 machine
-sudo systemctl enable --now lanecove-peer-2   # peer-2 machine
-```
-
-To uninstall:
-```bash
-sudo rpm -e lanecove-tunnel
-```
-
-## Running Natively (Linux)
-
-### Single machine (local testing)
-
-All three peers can run on one Linux machine by giving each a unique TUN interface name and having the peers connect to `127.0.0.1`.
-
-**1. Install dependencies**
-```bash
-sudo apt install libssl-dev libyaml-dev iproute2
-```
-
-**2. Build**
-```bash
-make all
-```
-
-**3. Copy keys**
-```bash
-sudo mkdir -p /etc/lanecove
-sudo cp config/relay.key config/peer-1.key config/peer-2.key /etc/lanecove/
-```
-
-**4. Set the relay endpoint in peer configs**
-
-In `config/peer-1.yaml` and `config/peer-2.yaml`, set:
-```yaml
-endpoint: 127.0.0.1:5040
-```
-
-**5. Create TUN interfaces** (one per peer, each with a unique name)
-```bash
-sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.1/24
-sudo ./scripts/lanecove-create-tunnel.sh lanecove1 10.9.0.2/24 10.9.0.0/24
-sudo ./scripts/lanecove-create-tunnel.sh lanecove2 10.9.0.3/24 10.9.0.0/24
-```
-
-**6. Update `interface:` in each config** to match the TUN name above:
-- `config/relay.yaml` → `interface: lanecove0`
-- `config/peer-1.yaml` → `interface: lanecove1`
-- `config/peer-2.yaml` → `interface: lanecove2`
-
-**7. Run each peer** (3 terminals)
-```bash
-# Terminal 1 — relay
-sudo ./lanecove -c config/relay.yaml
-
-# Terminal 2 — peer-1
-sudo ./lanecove -c config/peer-1.yaml
-
-# Terminal 3 — peer-2
-sudo ./lanecove -c config/peer-2.yaml
-```
-
-**8. Test**
-```bash
-ping 10.9.0.2   # relay → peer-1
-ping 10.9.0.3   # relay → peer-2
-```
-
-### Separate machines
-
-Deploy relay and peers on dedicated machines. Generate keys once and distribute them:
-
-```bash
-./scripts/lanecove-generate-peer-keys.sh relay peer-1 peer-2
-```
-
-On each machine, copy the appropriate key to `/etc/lanecove/`, update the `endpoint` in the peer configs to the relay's real IP or hostname, create the TUN interface with `lanecove-create-tunnel.sh`, then run:
-
-```bash
-# Relay machine
-./scripts/run-relay.sh
-
-# peer-1 machine
-sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.2/24 10.9.0.0/24
-sudo ./lanecove -c config/peer-1.yaml
-
-# peer-2 machine
-sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.3/24 10.9.0.0/24
-sudo ./lanecove -c config/peer-2.yaml
-```
-
-`lanecove-create-tunnel.sh` creates the TUN interface owned by the calling user (`$SUDO_USER`), so `lanecove` can open it without `CAP_NET_ADMIN` after the interface is set up.
-
----
 
 ## Security Details
 
@@ -471,20 +261,6 @@ SHA-256(
 
 Magic is `0xdeadbeefcafebabe`. Packets with a bad magic header, invalid GCM tag, or replayed sequence number are silently dropped.
 
-## Development Utilities
-
-### sync-on-changes.sh
-
-Watches source files on macOS and rsyncs the project to a remote Linux machine on every change. Useful when developing on a Mac where the lanecove binary cannot be compiled or run natively.
-
-```bash
-./sync-on-changes.sh
-```
-
-Requires [fswatch](https://github.com/emcrisostomo/fswatch) (`brew install fswatch`) and SSH access to the remote machine. Edit the `REMOTE` variable at the top of the script to point to your Linux machine.
-
----
-
 ## Comparison with Alternatives
 
 | | **lanecove-tunnel** | **WireGuard** | **OpenVPN** | **IPsec (strongSwan)** | **GRE** | **Tinc** |
@@ -504,26 +280,7 @@ Requires [fswatch](https://github.com/emcrisostomo/fswatch) (`brew install fswat
 | **Platforms** | Linux only | Linux, macOS, Windows, BSD | Cross-platform | Cross-platform | Linux | Cross-platform |
 | **Throughput** | Low (single-threaded) | High (kernel) | Medium | High (kernel) | High (kernel) | Medium |
 | **Lines of code** | ~1,200 | ~4,000 (kernel) | ~100,000+ | ~500,000+ | — | ~50,000 |
-| **Purpose** | Learning | Production | Production | Production | Infrastructure | Mesh VPN |
-
-**vs WireGuard** — Most similar in design (X25519, AES-256-GCM, identity hiding, AllowedIPs, rekeying). WireGuard is production-ready, runs in the kernel, and supports direct peer-to-peer. lanecove-tunnel is relay-only, Linux-only, and single-threaded userspace.
-
-**vs OpenVPN** — OpenVPN supports TCP/UDP, runs on all platforms, and uses TLS for the control channel. Requires a PKI. More configurable and battle-tested but significantly more complex to operate.
-
-**vs IPsec** — Enterprise standard with IKEv2, hardware acceleration, and kernel-level performance. Integrates with existing PKI. Configuration is notoriously complex. No comparison in features or throughput.
-
-**vs GRE** — Pure encapsulation with no encryption or authentication. Extremely fast (kernel), used in data centre and ISP infrastructure where encryption is handled at another layer. Does not handle NAT.
-
-**vs Tinc** — Full mesh routing (peers discover direct paths without a relay) and cross-platform. Lacks the modern cryptographic design (no Noise-style handshake or identity hiding).
-
-| Scenario | Recommendation |
-|----------|---------------|
-| Production VPN, any scale | WireGuard |
-| Enterprise, existing PKI | IPsec (strongSwan) |
-| Legacy/cross-platform compatibility | OpenVPN |
-| Data centre encapsulation (no encryption needed) | GRE |
-| Dynamic mesh between many nodes | Tinc |
-| Learning how VPNs work | **lanecove-tunnel** |
+| **Purpose** | Simple/small-scale | Production | Production | Production | Infrastructure | Mesh VPN |
 
 ---
 

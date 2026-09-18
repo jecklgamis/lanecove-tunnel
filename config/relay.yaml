@@ -1,3 +1,5 @@
+# DEMO CONFIG — uses keys/pre_shared_key committed in this repo for local testing only.
+# Regenerate before using on any non-local network: ./scripts/lanecove-generate-peer-keys.sh
 interface: lanecove0
 port: 5040
 private_key_file: /etc/lanecove/relay.key
