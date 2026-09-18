@@ -8,6 +8,6 @@ verbose: false
 
 peers:
   - public_key: b2d96646e3461951bac8c557d96a56d502c05bc1b6fb5535635004a60a5db23f
-    endpoint: 127.0.0.1:5040 # must point to the host machine where relay is running
+    endpoint: host.docker.internal:5040 # must point to the host machine where relay is running
     allowed_ips:
       - 10.9.0.0/24
