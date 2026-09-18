@@ -129,7 +129,7 @@ make image
 
 **Local testing (all on one machine — 3 terminals):**
 
-> Before running, update the `endpoint` in `config/peer-1.yaml` and `config/peer-2.yaml` to point to your relay's host or IP address.
+All three containers join a shared `lanecove-net` Docker network; the peer scripts resolve the relay by its container name automatically, so no config editing is needed for this local flow.
 
 ```bash
 ./scripts/run-relay-in-docker.sh

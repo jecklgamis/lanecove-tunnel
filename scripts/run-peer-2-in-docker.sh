@@ -8,6 +8,12 @@ CONFIG_DIR="${SCRIPT_DIR}/../config"
 KEY_CONTAINER=$(python3 -c "import yaml; cfg=yaml.safe_load(open('${CONFIG_ABS}')); print(cfg.get('private_key_file','peer.key'))")
 KEY_HOST="${CONFIG_DIR}/$(basename "$KEY_CONTAINER")"
 
+# config/peer-2.yaml's checked-in endpoint is a generic placeholder (for .deb/.rpm packaging);
+# render a temp copy pointing at the relay's container name on the shared lanecove-net network.
+CONFIG_RENDERED="$(mktemp)"
+trap 'rm -f "${CONFIG_RENDERED}"' EXIT
+sed -E 's/^( *endpoint: ).*/\1lanecove-tunnel-relay:5040/' "${CONFIG_ABS}" > "${CONFIG_RENDERED}"
+
 docker network create lanecove-net 2>/dev/null || true
 docker rm -f lanecove-tunnel-peer-2 2>/dev/null || true
 docker run \
@@ -16,7 +22,7 @@ docker run \
   --cap-add=NET_ADMIN \
   --device=/dev/net/tun \
   -v "${KEY_HOST}:${KEY_CONTAINER}:ro" \
-  -v "${CONFIG_ABS}:/lanecove/peer.yaml:ro" \
+  -v "${CONFIG_RENDERED}:/lanecove/peer.yaml:ro" \
   -p 5043:5040/udp \
   -p 15043:15040 \
   -p 15053:15050 \
