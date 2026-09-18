@@ -69,39 +69,45 @@ sudo apt install gcc make iproute2 libssl-dev libyaml-dev
 
 Each peer runs on its own Linux host (or its own network namespace/VM). Running relay + both peers as bare native processes side by side on **one** host does not work: once `10.9.0.2` and `10.9.0.3` are both assigned to interfaces on the same machine, the kernel treats them as local addresses and any reply generated on one TUN device gets routed straight back via `lo` instead of going out that device to be re-encrypted — the tunnel never sees the return traffic, no matter how ports/interfaces/configs are set up. This isn't specific to lanecove-tunnel; the same thing happens with WireGuard or any other TUN-based overlay if you assign multiple overlapping-subnet addresses on one host's routing table. For same-machine local testing, use [Running With Docker](#running-with-docker) below, which gives each peer its own network namespace via a container.
 
-**1. Install dependencies**
+**1. Install dependencies** (all three hosts)
 ```bash
 sudo apt install libssl-dev libyaml-dev iproute2
 ```
 
-**2. Build**
+**2. Build** (all three hosts, or build once and copy the `lanecove` binary over)
 ```bash
 make all
 ```
 
-**3. Copy keys and config** (only the files for the peer this host is running)
+**3. Copy keys and config, create the TUN interface, and edit `endpoint:` — each host only needs its own peer's files.** Assume the relay's public/reachable address is `203.0.113.10`.
+
+**On the relay host:**
 ```bash
 sudo mkdir -p /etc/lanecove
-sudo cp config/peer-1.key config/peer-1.yaml /etc/lanecove/   # example: this host is peer-1
+sudo cp config/relay.key config/relay.yaml /etc/lanecove/
+sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.1/24
+sudo ./lanecove -c /etc/lanecove/relay.yaml
 ```
 
-**4. Create the TUN interface**
+**On the peer-1 host:**
 ```bash
+sudo mkdir -p /etc/lanecove
+sudo cp config/peer-1.key config/peer-1.yaml /etc/lanecove/
 sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.2/24 10.9.0.0/24
-```
-
-**5. Update `endpoint:` in the config** to point at the relay's real, routable address (its default is a placeholder):
-```yaml
-peers:
-  - endpoint: <relay-public-ip>:5040
-```
-
-**6. Run**
-```bash
+# edit /etc/lanecove/peer-1.yaml: peers[0].endpoint: 203.0.113.10:5040
 sudo ./lanecove -c /etc/lanecove/peer-1.yaml
 ```
 
-Repeat on the relay host and the other peer's host with their own configs. Then test:
+**On the peer-2 host:**
+```bash
+sudo mkdir -p /etc/lanecove
+sudo cp config/peer-2.key config/peer-2.yaml /etc/lanecove/
+sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.3/24 10.9.0.0/24
+# edit /etc/lanecove/peer-2.yaml: peers[0].endpoint: 203.0.113.10:5040
+sudo ./lanecove -c /etc/lanecove/peer-2.yaml
+```
+
+**4. Test** (from the relay host)
 ```bash
 ping 10.9.0.2   # relay → peer-1
 ping 10.9.0.3   # relay → peer-2
