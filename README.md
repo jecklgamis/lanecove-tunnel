@@ -308,28 +308,87 @@ sudo rpm -e lanecove-tunnel
 
 ## Running Natively (Linux)
 
-Each peer (relay, peer-1, peer-2) must run on a **separate machine**. Running more than one on the same machine would conflict on the `lanecove0` TUN device name and the UDP port.
+### Single machine (local testing)
 
-The `lanecove` binary can run as a non-root user if the TUN interface is pre-created with the correct owner:
+All three peers can run on one Linux machine by giving each a unique TUN interface name and having the peers connect to `127.0.0.1`.
 
+**1. Install dependencies**
 ```bash
-# Generate keys (once)
-./scripts/lanecove-generate-peer-keys.sh relay peer-1 peer-2
-
-# Update the `endpoint` in config/peer-1.yaml and config/peer-2.yaml
-# to point to your relay's host or IP address before starting peers.
-
-# Relay
-./scripts/run-relay.sh
-
-# peer-1
-./scripts/run-peer-1.sh
-
-# peer-2
-./scripts/run-peer-2.sh
+sudo apt install libssl-dev libyaml-dev iproute2
 ```
 
-`lanecove-create-tunnel.sh` creates the TUN interface owned by the calling user (`$SUDO_USER`), so `peer` can open it without `CAP_NET_ADMIN`.
+**2. Build**
+```bash
+make all
+```
+
+**3. Copy keys**
+```bash
+sudo mkdir -p /etc/lanecove
+sudo cp config/relay.key config/peer-1.key config/peer-2.key /etc/lanecove/
+```
+
+**4. Set the relay endpoint in peer configs**
+
+In `config/peer-1.yaml` and `config/peer-2.yaml`, set:
+```yaml
+endpoint: 127.0.0.1:5040
+```
+
+**5. Create TUN interfaces** (one per peer, each with a unique name)
+```bash
+sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.1/24
+sudo ./scripts/lanecove-create-tunnel.sh lanecove1 10.9.0.2/24 10.9.0.0/24
+sudo ./scripts/lanecove-create-tunnel.sh lanecove2 10.9.0.3/24 10.9.0.0/24
+```
+
+**6. Update `interface:` in each config** to match the TUN name above:
+- `config/relay.yaml` → `interface: lanecove0`
+- `config/peer-1.yaml` → `interface: lanecove1`
+- `config/peer-2.yaml` → `interface: lanecove2`
+
+**7. Run each peer** (3 terminals)
+```bash
+# Terminal 1 — relay
+sudo ./lanecove -c config/relay.yaml
+
+# Terminal 2 — peer-1
+sudo ./lanecove -c config/peer-1.yaml
+
+# Terminal 3 — peer-2
+sudo ./lanecove -c config/peer-2.yaml
+```
+
+**8. Test**
+```bash
+ping 10.9.0.2   # relay → peer-1
+ping 10.9.0.3   # relay → peer-2
+```
+
+### Separate machines
+
+Deploy relay and peers on dedicated machines. Generate keys once and distribute them:
+
+```bash
+./scripts/lanecove-generate-peer-keys.sh relay peer-1 peer-2
+```
+
+On each machine, copy the appropriate key to `/etc/lanecove/`, update the `endpoint` in the peer configs to the relay's real IP or hostname, create the TUN interface with `lanecove-create-tunnel.sh`, then run:
+
+```bash
+# Relay machine
+./scripts/run-relay.sh
+
+# peer-1 machine
+sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.2/24 10.9.0.0/24
+sudo ./lanecove -c config/peer-1.yaml
+
+# peer-2 machine
+sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.3/24 10.9.0.0/24
+sudo ./lanecove -c config/peer-2.yaml
+```
+
+`lanecove-create-tunnel.sh` creates the TUN interface owned by the calling user (`$SUDO_USER`), so `lanecove` can open it without `CAP_NET_ADMIN` after the interface is set up.
 
 ---
 
