@@ -67,7 +67,7 @@ sudo apt install gcc make iproute2 libssl-dev libyaml-dev
 
 ## Running Natively (Linux)
 
-All three peers can run on one Linux machine by giving each a unique TUN interface name and having the peers connect to `127.0.0.1`.
+Each peer runs on its own Linux host (or its own network namespace/VM). Running relay + both peers as bare native processes side by side on **one** host does not work: once `10.9.0.2` and `10.9.0.3` are both assigned to interfaces on the same machine, the kernel treats them as local addresses and any reply generated on one TUN device gets routed straight back via `lo` instead of going out that device to be re-encrypted — the tunnel never sees the return traffic, no matter how ports/interfaces/configs are set up. This isn't specific to lanecove-tunnel; the same thing happens with WireGuard or any other TUN-based overlay if you assign multiple overlapping-subnet addresses on one host's routing table. For same-machine local testing, use [Running With Docker](#running-with-docker) below, which gives each peer its own network namespace via a container.
 
 **1. Install dependencies**
 ```bash
@@ -79,40 +79,29 @@ sudo apt install libssl-dev libyaml-dev iproute2
 make all
 ```
 
-**3. Copy keys and configs**
+**3. Copy keys and config** (only the files for the peer this host is running)
 ```bash
 sudo mkdir -p /etc/lanecove
-sudo cp config/relay.key config/peer-1.key config/peer-2.key /etc/lanecove/
-sudo cp config/relay.yaml config/peer-1.yaml config/peer-2.yaml /etc/lanecove/
+sudo cp config/peer-1.key config/peer-1.yaml /etc/lanecove/   # example: this host is peer-1
 ```
 
-**4. Create TUN interfaces** (one per peer, each with a unique name)
+**4. Create the TUN interface**
 ```bash
-sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.1/24
-sudo ./scripts/lanecove-create-tunnel.sh lanecove1 10.9.0.2/24 10.9.0.0/24
-sudo ./scripts/lanecove-create-tunnel.sh lanecove2 10.9.0.3/24 10.9.0.0/24
+sudo ./scripts/lanecove-create-tunnel.sh lanecove0 10.9.0.2/24 10.9.0.0/24
 ```
 
-**5. Update `interface:`, `port:`, and `endpoint:` in each config** — all three configs default to the same `port: 5040`, which only works when peers run on separate hosts, and peers' `endpoint:` defaults to a placeholder relay host. Since all three processes share one machine here, point peers at `127.0.0.1` and give peer-1 and peer-2 their own listening port (the relay keeps `5040`):
-- `/etc/lanecove/relay.yaml` → `interface: lanecove0`, `port: 5040`
-- `/etc/lanecove/peer-1.yaml` → `interface: lanecove1`, `port: 5041`, `endpoint: 127.0.0.1:5040`
-- `/etc/lanecove/peer-2.yaml` → `interface: lanecove2`, `port: 5042`, `endpoint: 127.0.0.1:5040`
+**5. Update `endpoint:` in the config** to point at the relay's real, routable address (its default is a placeholder):
+```yaml
+peers:
+  - endpoint: <relay-public-ip>:5040
+```
 
-If a peer's `port:` collides with the relay's, the handshake will fail with `Failed to decrypt server identity — possible MITM` — that error is misleading here; it just means two processes on this host are fighting over the same UDP port.
-
-**6. Run each peer** (3 terminals)
+**6. Run**
 ```bash
-# Terminal 1 — relay
-sudo ./lanecove -c /etc/lanecove/relay.yaml
-
-# Terminal 2 — peer-1
 sudo ./lanecove -c /etc/lanecove/peer-1.yaml
-
-# Terminal 3 — peer-2
-sudo ./lanecove -c /etc/lanecove/peer-2.yaml
 ```
 
-**7. Test**
+Repeat on the relay host and the other peer's host with their own configs. Then test:
 ```bash
 ping 10.9.0.2   # relay → peer-1
 ping 10.9.0.3   # relay → peer-2
