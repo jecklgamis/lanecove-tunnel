@@ -69,7 +69,10 @@ test:
 	for f in $(RCUNIT_SRC); do gcc -O2 -w -include tests/rcunit_no_debug.h -c $$f -o build/rcunit/$$(basename $$f .c).o -I rcunit/src; done
 	gcc $(CFLAGS) -o build/run_tests tests/test_common.c src/common.c build/rcunit/*.o \
 		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm
+	gcc $(CFLAGS) -w -o build/run_tests_peer tests/test_peer.c src/common.c build/rcunit/*.o \
+		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm
 	./build/run_tests
+	./build/run_tests_peer
 test-image:
 	docker build -t $(TEST_IMAGE) -f Dockerfile.test .
 test-using-docker: test-image
@@ -79,7 +82,10 @@ test-using-docker: test-image
 		for f in $(RCUNIT_SRC); do gcc -O2 -w -include tests/rcunit_no_debug.h -c \$$f -o build/rcunit/\$$(basename \$$f .c).o -I rcunit/src; done && \
 		gcc $(CFLAGS) -o build/run_tests tests/test_common.c src/common.c build/rcunit/*.o \
 		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm && \
-		./build/run_tests"
+		gcc $(CFLAGS) -w -o build/run_tests_peer tests/test_peer.c src/common.c build/rcunit/*.o \
+		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm && \
+		./build/run_tests && \
+		./build/run_tests_peer"
 clean:
 	rm -f ./lanecove
 	rm -rf build/
