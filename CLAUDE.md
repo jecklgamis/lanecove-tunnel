@@ -1,7 +1,7 @@
 # lanecove-tunnel
 
 ## Project Overview
-A simple Linux hub-and-spoke layer 3 overlay network using a TUN virtual interface over UDP. A working VPN implementation with a deliberately small feature set. Not for production use.
+A simple Linux hub-and-spoke layer 3 overlay network using a TUN virtual interface over UDP. A working VPN implementation with a deliberately small feature set.
 
 ## Architecture
 
