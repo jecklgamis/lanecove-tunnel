@@ -2,6 +2,6 @@
 set -e
 TARGET_IP="${1:-10.9.0.3}"
 echo "Pinging $TARGET_IP from peer-1..."
-docker exec -it lanecove-tunnel-peer-1 ping -c 2 "$TARGET_IP"
+docker exec lanecove-tunnel-peer-1 ping -c 2 "$TARGET_IP"
 echo "Curling http://$TARGET_IP from peer-1..."
-docker exec -it lanecove-tunnel-peer-1 curl -s --max-time 5 "http://$TARGET_IP"
+docker exec lanecove-tunnel-peer-1 curl -s --max-time 5 "http://$TARGET_IP"

@@ -86,6 +86,8 @@ test-using-docker: test-image
 		-isystem rcunit/src -lssl -lcrypto -lyaml -lpthread -lm && \
 		./build/run_tests && \
 		./build/run_tests_peer"
+integration-test: image
+	./scripts/run-integration-test.sh
 clean:
 	rm -f ./lanecove
 	rm -rf build/
