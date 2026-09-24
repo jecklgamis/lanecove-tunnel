@@ -104,6 +104,8 @@ jobs:
           if [ "$RPM_REL" = "$VERSION" ]; then RPM_REL="1"; fi
           docker run --rm -v "$PWD:/src" -w /src rockylinux:8 bash -c "
             set -e
+            dnf install -y -q dnf-plugins-core
+            dnf config-manager --set-enabled powertools
             dnf install -y -q gcc make openssl-devel libyaml-devel rpm-build
             make rpm RPM_VERSION=$RPM_VER RPM_RELEASE=$RPM_REL
             chown -R $(id -u):$(id -g) build
