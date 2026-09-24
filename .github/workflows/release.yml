@@ -54,14 +54,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt-get install -y libssl-dev libyaml-dev
-
-      - name: Build deb
+      # Compile inside a pinned Ubuntu 22.04 container rather than directly
+      # on the runner. The runner's own OS (ubuntu-latest) moves out from
+      # under us over time (it silently became 24.04, whose newer glibc
+      # produced binaries that fail to load — "GLIBC_2.38 not found" — on
+      # any older target, e.g. the 22.04 boxes this is meant to run on).
+      # Building against a fixed, older glibc baseline keeps the binary
+      # forward-compatible with newer systems without relying on whatever
+      # Ubuntu version GitHub happens to alias "latest" to this month.
+      - name: Build deb (pinned Ubuntu 22.04 toolchain for glibc compatibility)
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
-          make deb DEB_ARCH=${{ matrix.arch }} DEB_VERSION=$VERSION
+          docker run --rm -v "$PWD:/src" -w /src ubuntu:22.04 bash -c "
+            set -e
+            apt-get update -q
+            apt-get install -y -q build-essential libssl-dev libyaml-dev
+            make deb DEB_ARCH=${{ matrix.arch }} DEB_VERSION=$VERSION
+            chown -R $(id -u):$(id -g) build
+          "
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -81,17 +92,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt-get install -y libssl-dev libyaml-dev rpm
-
-      - name: Build rpm
+      # Same glibc-pinning rationale as build-deb above, using a common
+      # older RPM-family baseline (RHEL/Rocky/Alma 8, glibc 2.28) instead
+      # of whatever glibc the ubuntu-latest runner happens to ship.
+      - name: Build rpm (pinned Rocky Linux 8 toolchain for glibc compatibility)
         run: |
           TAG="${{ github.ref_name }}"
           VERSION="${TAG#v}"
           RPM_VER="${VERSION%%-*}"
           RPM_REL="${VERSION#*-}"
           if [ "$RPM_REL" = "$VERSION" ]; then RPM_REL="1"; fi
-          make rpm RPM_VERSION=$RPM_VER RPM_RELEASE=$RPM_REL
+          docker run --rm -v "$PWD:/src" -w /src rockylinux:8 bash -c "
+            set -e
+            dnf install -y -q gcc make openssl-devel libyaml-devel rpm-build
+            make rpm RPM_VERSION=$RPM_VER RPM_RELEASE=$RPM_REL
+            chown -R $(id -u):$(id -g) build
+          "
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
